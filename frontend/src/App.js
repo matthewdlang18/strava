@@ -429,7 +429,7 @@ function App() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              <FiBarChart3 className="inline mr-2" />
+              <FiBarChart2 className="inline mr-2" />
               Dashboard
             </motion.button>
             <motion.button
