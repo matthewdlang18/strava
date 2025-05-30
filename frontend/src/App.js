@@ -195,11 +195,34 @@ function App() {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const authSuccess = urlParams.get('auth_success');
+    const authError = urlParams.get('auth_error');
     const userId = urlParams.get('user_id');
     const athleteId = urlParams.get('athlete_id');
     const athleteName = urlParams.get('athlete_name');
     const code = urlParams.get('code');
     const state = urlParams.get('state');
+    
+    // Handle authentication errors
+    if (authError) {
+      console.error('Authentication error:', authError);
+      let errorMessage = 'Authentication failed. Please try again.';
+      
+      switch (authError) {
+        case 'invalid_state':
+          errorMessage = 'Session expired. Please try logging in again.';
+          break;
+        case 'token_exchange_failed':
+          errorMessage = 'Failed to connect to Strava. Please try again.';
+          break;
+        case 'callback_error':
+          errorMessage = 'Authentication error occurred. Please try again.';
+          break;
+      }
+      
+      alert(errorMessage);
+      window.history.replaceState({}, document.title, window.location.pathname);
+      return;
+    }
     
     // Handle successful redirect from backend
     if (authSuccess === 'true' && userId) {
