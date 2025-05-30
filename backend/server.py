@@ -223,16 +223,18 @@ async def strava_callback(code: str = Query(...), state: str = Query(...)):
         # Create new user
         await db.users.insert_one(user_doc)
     
-    # Return success with user info
-    return {
-        "success": True,
+    # Redirect back to frontend with success data
+    frontend_url = f"https://ca56087f-904a-47d2-9ebe-bb5f787bfe7e.preview.emergentagent.com"
+    redirect_params = {
+        "auth_success": "true",
         "user_id": user_id,
-        "athlete": {
-            "id": athlete_data.get("id"),
-            "name": f"{athlete_data.get('firstname', '')} {athlete_data.get('lastname', '')}".strip(),
-            "email": athlete_data.get("email")
-        }
+        "athlete_id": athlete_data.get("id"),
+        "athlete_name": f"{athlete_data.get('firstname', '')} {athlete_data.get('lastname', '')}".strip()
     }
+    
+    # Create redirect URL with parameters
+    redirect_url = f"{frontend_url}?{urlencode(redirect_params)}"
+    return RedirectResponse(url=redirect_url)
 
 @app.get("/api/user/{user_id}")
 async def get_user(user_id: str):
