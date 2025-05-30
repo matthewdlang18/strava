@@ -1,0 +1,35 @@
+{
+  "name": "Strava App",
+  "description": "A full-stack Strava integration application with React frontend and FastAPI backend",
+  "repository": "https://github.com/matthewdlang18/strava",
+  "logo": "https://strava-brand-guidelines.s3.amazonaws.com/strava-icons/icon-strava.png",
+  "keywords": ["strava", "react", "fastapi", "python", "javascript"],
+  "success_url": "/",
+  "stack": "container",
+  "env": {
+    "STRAVA_CLIENT_ID": {
+      "description": "Your Strava API Client ID",
+      "required": true
+    },
+    "STRAVA_CLIENT_SECRET": {
+      "description": "Your Strava API Client Secret", 
+      "required": true
+    },
+    "MONGODB_URI": {
+      "description": "MongoDB connection string",
+      "required": true
+    },
+    "FRONTEND_ENV": {
+      "description": "Frontend environment variables (comma-separated key=value pairs)",
+      "value": "REACT_APP_API_URL=https://YOUR_HEROKU_APP_NAME.herokuapp.com",
+      "required": true
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "addons": []
+}

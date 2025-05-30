@@ -556,6 +556,11 @@ async def root():
         ]
     }
 
+@app.get("/health")
+async def health_root():
+    """Health check endpoint for deployment monitoring"""
+    return {"status": "healthy", "timestamp": datetime.now().isoformat(), "version": "2.0.0"}
+
 @app.get("/api/health")
 async def health():
     return {"status": "healthy", "timestamp": datetime.now().isoformat(), "version": "2.0.0"}
