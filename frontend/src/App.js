@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useInView } from 'react-intersection-observer';
 import { 
   FiActivity, FiTrendingUp, FiAward, FiTarget, FiDownload, FiShare2, 
-  FiHeart, FiZap, FiMapPin, FiClock, FiBarChart3, FiStar,
+  FiHeart, FiZap, FiMapPin, FiClock, FiBarChart2, FiStar,
   FiSun, FiCloud, FiCloudRain, FiWind, FiThermometer
 } from 'react-icons/fi';
 import { format, formatDistanceToNow } from 'date-fns';
