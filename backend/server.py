@@ -1252,7 +1252,17 @@ async def get_activity_detail(user_id: str, strava_id: int):
         }
     }
     
-    return {"activity": enhanced_activity}
+    # Clean enhanced activity for JSON serialization
+    clean_enhanced_activity = {}
+    for key, value in enhanced_activity.items():
+        if isinstance(value, ObjectId):
+            clean_enhanced_activity[key] = str(value)
+        elif isinstance(value, datetime):
+            clean_enhanced_activity[key] = value.isoformat()
+        else:
+            clean_enhanced_activity[key] = value
+    
+    return {"activity": clean_enhanced_activity}
 
 @app.get("/api/user/{user_id}/personal-records")
 async def get_personal_records(user_id: str):
