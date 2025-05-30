@@ -1345,9 +1345,11 @@ function App() {
               <h3 className="text-lg font-semibold mb-4 text-gray-900">Route Map</h3>
               <div className="h-96 rounded-lg overflow-hidden">
                 <MapContainer
+                  key={`map-${selectedActivity.strava_id}-${Date.now()}`} // Force new instance
                   center={selectedActivity.route_coordinates[0]}
                   zoom={13}
                   style={{ height: '100%', width: '100%' }}
+                  scrollWheelZoom={true}
                 >
                   <TileLayer
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -1357,18 +1359,56 @@ function App() {
                     positions={selectedActivity.route_coordinates} 
                     color={getSportColor(selectedActivity.sport_type)}
                     weight={4}
+                    opacity={0.8}
                   />
                   {selectedActivity.start_latlng && (
                     <Marker position={selectedActivity.start_latlng}>
-                      <Popup>Start</Popup>
+                      <Popup>
+                        <div className="text-center">
+                          <div className="text-green-600 font-bold">🚀 START</div>
+                          <div className="text-sm">{selectedActivity.name}</div>
+                        </div>
+                      </Popup>
                     </Marker>
                   )}
                   {selectedActivity.end_latlng && (
                     <Marker position={selectedActivity.end_latlng}>
-                      <Popup>Finish</Popup>
+                      <Popup>
+                        <div className="text-center">
+                          <div className="text-red-600 font-bold">🏁 FINISH</div>
+                          <div className="text-sm">
+                            {selectedActivity.distance ? `${(selectedActivity.distance / 1000).toFixed(1)} km` : 'Unknown distance'}
+                          </div>
+                        </div>
+                      </Popup>
                     </Marker>
                   )}
                 </MapContainer>
+              </div>
+              
+              {/* Route Stats */}
+              <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div className="bg-gray-50 rounded-lg p-3 text-center">
+                  <div className="font-semibold text-gray-900">Route Distance</div>
+                  <div className="text-blue-600">{selectedActivity.distance ? `${(selectedActivity.distance / 1000).toFixed(1)} km` : 'N/A'}</div>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3 text-center">
+                  <div className="font-semibold text-gray-900">Elevation Gain</div>
+                  <div className="text-orange-600">{selectedActivity.total_elevation_gain ? `${Math.round(selectedActivity.total_elevation_gain)} m` : 'N/A'}</div>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3 text-center">
+                  <div className="font-semibold text-gray-900">Avg Grade</div>
+                  <div className="text-purple-600">
+                    {selectedActivity.distance && selectedActivity.total_elevation_gain 
+                      ? `${((selectedActivity.total_elevation_gain / selectedActivity.distance) * 100).toFixed(1)}%`
+                      : 'N/A'
+                    }
+                  </div>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3 text-center">
+                  <div className="font-semibold text-gray-900">Route Points</div>
+                  <div className="text-green-600">{selectedActivity.route_coordinates.length} GPS points</div>
+                </div>
               </div>
             </motion.div>
           )}
