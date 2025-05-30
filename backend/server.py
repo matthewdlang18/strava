@@ -17,8 +17,7 @@ import json
 import io
 import csv
 from collections import defaultdict
-import python_weather
-import aiohttp
+from bson import ObjectId
 
 # Load environment variables
 load_dotenv()
@@ -33,6 +32,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Custom JSON encoder for MongoDB ObjectId
+def json_encoder(obj):
+    """JSON encoder function to handle MongoDB ObjectId and datetime objects"""
+    if isinstance(obj, ObjectId):
+        return str(obj)
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
 # MongoDB connection
 client = None
