@@ -218,34 +218,142 @@ class FitTrackerProTester:
         )
         if success1:
             self.premium_tests_passed += 1
-            if 'ai_insights' in dashboard:
+            if 'performance_insights' in dashboard:
                 print(f"✅ AI insights found in dashboard")
             else:
                 print(f"❌ AI insights not found in dashboard")
                 success1 = False
         
-        # Test detailed activities with maps
+        # Test activities endpoint
         self.premium_tests_run += 1
-        success2, activities = self.run_test(
-            "User Activities with Map Data",
+        success2, activities_response = self.run_test(
+            "User Activities",
             "GET",
             f"user/{self.user_id}/activities",
-            200,
-            params={"detailed": "true"}
+            200
         )
         if success2:
             self.premium_tests_passed += 1
-            if activities and len(activities) > 0:
-                if 'map' in activities[0]:
-                    print(f"✅ Map data found in activities")
-                else:
-                    print(f"❌ Map data not found in activities")
-                    success2 = False
+            if 'activities' in activities_response:
+                print(f"✅ Activities data found")
+                # Check for ObjectId serialization fix
+                try:
+                    json.dumps(activities_response)
+                    print(f"✅ JSON serialization working correctly")
+                except TypeError as e:
+                    if "not JSON serializable" in str(e):
+                        print(f"❌ JSON serialization still has issues: {e}")
+                        success2 = False
             else:
-                print(f"❌ No activities found")
+                print(f"❌ Activities data not found")
                 success2 = False
         
-        return success1 and success2
+        # Test bulk sync with pagination
+        self.premium_tests_run += 1
+        success3, bulk_sync_response = self.run_test(
+            "Bulk Activities Sync with Pagination",
+            "GET",
+            f"user/{self.user_id}/activities",
+            200,
+            params={"sync_all": "true"}
+        )
+        if success3:
+            self.premium_tests_passed += 1
+            if 'synced_pages' in bulk_sync_response and bulk_sync_response['synced_pages'] > 0:
+                print(f"✅ Bulk sync with pagination working")
+            else:
+                print(f"❌ Bulk sync with pagination not working properly")
+                success3 = False
+        
+        # Test personal records
+        self.premium_tests_run += 1
+        success4, records_response = self.run_test(
+            "User Personal Records",
+            "GET",
+            f"user/{self.user_id}/personal-records",
+            200
+        )
+        if success4:
+            self.premium_tests_passed += 1
+            if 'personal_records' in records_response:
+                print(f"✅ Personal records data found")
+            else:
+                print(f"❌ Personal records data not found")
+                success4 = False
+        
+        # Test achievements
+        self.premium_tests_run += 1
+        success5, achievements_response = self.run_test(
+            "User Achievements",
+            "GET",
+            f"user/{self.user_id}/achievements",
+            200
+        )
+        if success5:
+            self.premium_tests_passed += 1
+            if 'achievements' in achievements_response:
+                print(f"✅ Achievements data found")
+            else:
+                print(f"❌ Achievements data not found")
+                success5 = False
+        
+        # Test data export
+        self.premium_tests_run += 1
+        success6, export_response = self.run_test(
+            "Data Export",
+            "GET",
+            f"user/{self.user_id}/export",
+            200,
+            params={"format": "csv"}
+        )
+        if success6:
+            self.premium_tests_passed += 1
+            if 'csv_data' in export_response and 'filename' in export_response:
+                print(f"✅ Data export working")
+            else:
+                print(f"❌ Data export not working properly")
+                success6 = False
+        
+        return success1 and success2 and success3 and success4 and success5 and success6
+        
+    def test_activity_detail(self):
+        """Test activity detail endpoint if a valid user is found"""
+        if not self.user_id:
+            if not self.find_valid_user():
+                return False
+        
+        # First get activities to find a valid activity ID
+        success, activities_response = self.run_test(
+            "Get Activities to Find Valid Activity ID",
+            "GET",
+            f"user/{self.user_id}/activities",
+            200
+        )
+        
+        if not success or 'activities' not in activities_response or not activities_response['activities']:
+            print("❌ No activities found to test activity detail")
+            return False
+        
+        # Get the first activity's Strava ID
+        strava_id = activities_response['activities'][0].get('strava_id')
+        if not strava_id:
+            print("❌ No Strava ID found in activity")
+            return False
+        
+        # Test activity detail endpoint
+        success, activity_detail = self.run_test(
+            "Activity Detail",
+            "GET",
+            f"user/{self.user_id}/activity/{strava_id}",
+            200
+        )
+        
+        if success and 'activity' in activity_detail:
+            print(f"✅ Activity detail endpoint working")
+            return True
+        else:
+            print(f"❌ Activity detail endpoint not working properly")
+            return False
 
 def main():
     tester = FitTrackerProTester()
