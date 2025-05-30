@@ -163,17 +163,26 @@ function App() {
     }
   };
 
-  const loadActivities = async (detailed = false) => {
+  const loadActivities = async (detailed = false, syncAll = false) => {
     if (!user) return;
     
     try {
       setIsLoading(true);
-      const response = await fetch(`${API_BASE_URL}/api/user/${user.user_id}/activities?detailed=${detailed}`);
+      const params = new URLSearchParams({
+        detailed: detailed.toString(),
+        sync_all: syncAll.toString()
+      });
+      
+      const response = await fetch(`${API_BASE_URL}/api/user/${user.user_id}/activities?${params}`);
       const data = await response.json();
       
       if (response.ok) {
         setActivities(data.activities || []);
         setCurrentView('activities');
+        
+        if (syncAll) {
+          alert(`Successfully synced ${data.count} activities from ${data.synced_pages || 1} pages!`);
+        }
       } else {
         throw new Error(data.detail || 'Failed to load activities');
       }
