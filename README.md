@@ -71,7 +71,7 @@ FRONTEND_ENV=REACT_APP_API_URL=http://localhost:8001,REACT_APP_STRAVA_CLIENT_ID=
 
 ## 🚀 Deployment
 
-This application supports multiple deployment platforms:
+This application supports multiple deployment platforms. The GitHub Actions workflows have been optimized to use Yarn (which the frontend uses) instead of npm, fixing caching issues.
 
 ### GitHub Container Registry (Automatic)
 
@@ -115,6 +115,33 @@ The GitHub Actions workflow automatically builds and pushes Docker images to Git
 2. Connect your GitHub repository
 3. DigitalOcean will automatically detect the Dockerfile
 4. Set environment variables in the DigitalOcean dashboard
+
+## 🛠️ Troubleshooting
+
+### GitHub Actions Issues
+
+**npm cache path resolution errors**: Fixed by updating workflows to use Yarn instead of npm, since the frontend uses `yarn.lock`.
+
+**Workflow conditional deployments**: The workflows now use `continue-on-error: true` to gracefully handle missing deployment secrets without failing the entire workflow.
+
+### Local Development Issues
+
+**Port conflicts**: If you get port conflicts, modify the ports in `docker-compose.yml` or stop other services using ports 80, 8001, or 27017.
+
+**Frontend build issues**: Ensure you're using Yarn:
+```bash
+cd frontend
+yarn install
+yarn build
+```
+
+**Backend dependency issues**: Use a virtual environment:
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
 
 ## 🔐 GitHub Secrets Setup
 
