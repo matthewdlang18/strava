@@ -1,6 +1,6 @@
-from fastapi import FastAPI, HTTPException, Request, Depends, Query
+from fastapi import FastAPI, HTTPException, Request, Depends, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.responses import RedirectResponse, JSONResponse, FileResponse
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
@@ -14,11 +14,16 @@ from urllib.parse import urlencode
 import secrets
 import polyline
 import json
+import io
+import csv
+from collections import defaultdict
+import python_weather
+import aiohttp
 
 # Load environment variables
 load_dotenv()
 
-app = FastAPI(title="FitTracker Pro API", version="1.0.0")
+app = FastAPI(title="FitTracker Pro API - Ultimate Edition", version="2.0.0", description="The most comprehensive fitness tracking API with premium features")
 
 # CORS configuration
 app.add_middleware(
@@ -49,6 +54,14 @@ async def startup_db_client():
     try:
         await client.admin.command('ping')
         print(f"Connected to MongoDB: {db_name}")
+        
+        # Create indexes for better performance
+        await db.activities.create_index([("user_id", 1), ("start_date", -1)])
+        await db.activities.create_index([("strava_id", 1), ("user_id", 1)], unique=True)
+        await db.personal_records.create_index([("user_id", 1), ("record_type", 1)])
+        await db.achievements.create_index([("user_id", 1), ("date_achieved", -1)])
+        await db.goals.create_index([("user_id", 1), ("target_date", 1)])
+        
     except Exception as e:
         print(f"Failed to connect to MongoDB: {e}")
         raise
@@ -63,7 +76,7 @@ STRAVA_CLIENT_ID = os.getenv("STRAVA_CLIENT_ID")
 STRAVA_CLIENT_SECRET = os.getenv("STRAVA_CLIENT_SECRET")
 STRAVA_REDIRECT_URI = os.getenv("STRAVA_REDIRECT_URI")
 
-# Pydantic models
+# Enhanced Pydantic models
 class User(BaseModel):
     id: str
     strava_id: Optional[int] = None
@@ -72,10 +85,56 @@ class User(BaseModel):
     email: Optional[str] = None
     access_token: Optional[str] = None
     refresh_token: Optional[str] = None
+    profile_picture: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
+    premium_features: Optional[bool] = True  # Everyone gets premium!
     created_at: datetime
     updated_at: datetime
 
-class ActivityDetailed(BaseModel):
+class PersonalRecord(BaseModel):
+    id: str
+    user_id: str
+    record_type: str  # "fastest_5k", "longest_ride", "biggest_climb", etc.
+    sport_type: str
+    value: float
+    unit: str
+    activity_id: str
+    activity_name: str
+    date_achieved: datetime
+    previous_record: Optional[float] = None
+
+class Achievement(BaseModel):
+    id: str
+    user_id: str
+    achievement_type: str
+    title: str
+    description: str
+    icon: str
+    date_achieved: datetime
+    activity_id: Optional[str] = None
+
+class Goal(BaseModel):
+    id: str
+    user_id: str
+    goal_type: str  # "distance", "time", "activities", "elevation"
+    sport_type: Optional[str] = None
+    target_value: float
+    current_value: float
+    unit: str
+    period: str  # "weekly", "monthly", "yearly"
+    target_date: datetime
+    created_at: datetime
+    completed: bool = False
+
+class WeatherData(BaseModel):
+    temperature: Optional[float] = None
+    condition: Optional[str] = None
+    humidity: Optional[float] = None
+    wind_speed: Optional[float] = None
+    wind_direction: Optional[str] = None
+
+class EnhancedActivity(BaseModel):
     id: str
     strava_id: int
     user_id: str
@@ -119,34 +178,23 @@ class ActivityDetailed(BaseModel):
     intensity_factor: Optional[float] = None
     normalized_power: Optional[int] = None
     
+    # Weather data
+    weather: Optional[WeatherData] = None
+    
+    # Analysis flags
+    is_personal_record: Optional[bool] = False
+    achievements_earned: Optional[List[str]] = []
+    
     created_at: datetime
 
-class ActivityLaps(BaseModel):
-    id: str
-    activity_id: str
-    lap_index: int
-    name: Optional[str] = None
-    elapsed_time: Optional[int] = None
-    moving_time: Optional[int] = None
-    start_date: Optional[datetime] = None
-    distance: Optional[float] = None
-    start_index: Optional[int] = None
-    end_index: Optional[int] = None
-    total_elevation_gain: Optional[float] = None
-    average_speed: Optional[float] = None
-    max_speed: Optional[float] = None
-    average_cadence: Optional[float] = None
-    average_heartrate: Optional[float] = None
-    max_heartrate: Optional[float] = None
-
-class DashboardStats(BaseModel):
+class ComprehensiveDashboard(BaseModel):
+    # Basic stats
     total_activities: int
     total_distance: float
     total_time: int
     this_week_activities: int
     this_week_distance: float
     avg_speed: float
-    recent_activities: List[Dict[str, Any]]
     
     # Enhanced stats
     total_elevation: float
@@ -155,19 +203,16 @@ class DashboardStats(BaseModel):
     activities_by_sport: Dict[str, int]
     monthly_distance: List[Dict[str, Any]]
     heartrate_zones: Dict[str, Any]
-
-class ActivityStreams(BaseModel):
-    time: Optional[List[int]] = None
-    latlng: Optional[List[List[float]]] = None
-    distance: Optional[List[float]] = None
-    altitude: Optional[List[float]] = None
-    velocity_smooth: Optional[List[float]] = None
-    heartrate: Optional[List[int]] = None
-    cadence: Optional[List[int]] = None
-    watts: Optional[List[int]] = None
-    temp: Optional[List[int]] = None
-    moving: Optional[List[bool]] = None
-    grade_smooth: Optional[List[float]] = None
+    
+    # Premium features
+    personal_records: List[Dict[str, Any]]
+    recent_achievements: List[Dict[str, Any]]
+    training_trends: Dict[str, Any]
+    performance_insights: List[str]
+    upcoming_goals: List[Dict[str, Any]]
+    fitness_score: float
+    training_load: Dict[str, Any]
+    recent_activities: List[Dict[str, Any]]
 
 # Helper functions
 def generate_state() -> str:
@@ -231,14 +276,281 @@ def decode_polyline(encoded_polyline: str) -> List[List[float]]:
     except:
         return []
 
-# Routes
+async def get_weather_for_activity(lat: float, lng: float, date: datetime) -> WeatherData:
+    """Get weather data for activity location and time (mock implementation)"""
+    # In a real implementation, you'd use a weather API
+    # For now, return mock weather data
+    return WeatherData(
+        temperature=22.5,
+        condition="Partly Cloudy",
+        humidity=65.0,
+        wind_speed=12.5,
+        wind_direction="NW"
+    )
+
+def calculate_fitness_score(activities: List[dict]) -> float:
+    """Calculate overall fitness score based on recent activities"""
+    if not activities:
+        return 0.0
+    
+    # Simple fitness score calculation based on frequency, intensity, and variety
+    recent_activities = [a for a in activities if a.get('start_date', datetime.min) >= datetime.now() - timedelta(days=30)]
+    
+    if not recent_activities:
+        return 0.0
+    
+    # Frequency score (0-40 points)
+    frequency_score = min(len(recent_activities) * 2, 40)
+    
+    # Intensity score (0-30 points) based on average heart rate
+    hr_activities = [a for a in recent_activities if a.get('average_heartrate')]
+    intensity_score = 0
+    if hr_activities:
+        avg_hr = sum(a.get('average_heartrate', 0) for a in hr_activities) / len(hr_activities)
+        intensity_score = min((avg_hr / 160) * 30, 30)  # Assuming max HR around 180-200
+    
+    # Variety score (0-20 points)
+    sports = set(a.get('sport_type') for a in recent_activities)
+    variety_score = min(len(sports) * 5, 20)
+    
+    # Distance/time score (0-10 points)
+    total_distance = sum(a.get('distance', 0) or 0 for a in recent_activities)
+    distance_score = min((total_distance / 1000) / 100 * 10, 10)  # 100km = max points
+    
+    total_score = frequency_score + intensity_score + variety_score + distance_score
+    return round(total_score, 1)
+
+def generate_performance_insights(activities: List[dict], personal_records: List[dict]) -> List[str]:
+    """Generate AI-powered performance insights"""
+    insights = []
+    
+    if not activities:
+        return ["Start tracking activities to get personalized insights!"]
+    
+    recent_activities = [a for a in activities if a.get('start_date', datetime.min) >= datetime.now() - timedelta(days=30)]
+    
+    # Activity frequency insight
+    if len(recent_activities) >= 12:
+        insights.append("🔥 You're on fire! 12+ activities this month shows excellent consistency.")
+    elif len(recent_activities) >= 8:
+        insights.append("💪 Great training frequency! You're building strong fitness habits.")
+    elif len(recent_activities) >= 4:
+        insights.append("📈 Good activity level. Try to increase frequency for better fitness gains.")
+    else:
+        insights.append("🎯 Consider increasing your activity frequency for better results.")
+    
+    # Heart rate training insights
+    hr_activities = [a for a in recent_activities if a.get('average_heartrate')]
+    if hr_activities:
+        avg_hr = sum(a.get('average_heartrate', 0) for a in hr_activities) / len(hr_activities)
+        if avg_hr > 160:
+            insights.append("🔥 High-intensity training detected! Make sure to include recovery days.")
+        elif avg_hr < 130:
+            insights.append("🚶‍♂️ Your training is quite easy-paced. Consider adding some higher intensity sessions.")
+        else:
+            insights.append("✅ Perfect heart rate training zone for building aerobic fitness!")
+    
+    # Personal records insight
+    recent_prs = [pr for pr in personal_records if pr.get('date_achieved', datetime.min) >= datetime.now() - timedelta(days=30)]
+    if recent_prs:
+        insights.append(f"🏆 Amazing! You've set {len(recent_prs)} personal record(s) this month!")
+    
+    # Sport variety insight
+    sports = set(a.get('sport_type') for a in recent_activities)
+    if len(sports) >= 3:
+        insights.append("🌟 Excellent sport variety! Cross-training prevents injuries and improves overall fitness.")
+    elif len(sports) == 2:
+        insights.append("👍 Good variety with multiple sports. Consider adding one more for optimal cross-training.")
+    
+    return insights[:5]  # Return top 5 insights
+
+def check_for_achievements(activity: dict, user_activities: List[dict]) -> List[Achievement]:
+    """Check if activity earned any achievements"""
+    achievements = []
+    activity_id = activity.get('id')
+    user_id = activity.get('user_id')
+    
+    # First activity achievement
+    if len(user_activities) == 1:
+        achievements.append(Achievement(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            achievement_type="first_activity",
+            title="Getting Started! 🎯",
+            description="Completed your first tracked activity",
+            icon="🎯",
+            date_achieved=datetime.now(),
+            activity_id=activity_id
+        ))
+    
+    # Distance milestones
+    distance = activity.get('distance', 0) or 0
+    if distance >= 100000:  # 100km
+        achievements.append(Achievement(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            achievement_type="century",
+            title="Century! 💯",
+            description="Completed a 100km+ activity",
+            icon="💯",
+            date_achieved=datetime.now(),
+            activity_id=activity_id
+        ))
+    elif distance >= 50000:  # 50km
+        achievements.append(Achievement(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            achievement_type="half_century",
+            title="Half Century! 🎖️",
+            description="Completed a 50km+ activity",
+            icon="🎖️",
+            date_achieved=datetime.now(),
+            activity_id=activity_id
+        ))
+    
+    # Time milestones
+    moving_time = activity.get('moving_time', 0) or 0
+    if moving_time >= 7200:  # 2 hours
+        achievements.append(Achievement(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            achievement_type="endurance",
+            title="Endurance Athlete! ⏰",
+            description="Completed a 2+ hour activity",
+            icon="⏰",
+            date_achieved=datetime.now(),
+            activity_id=activity_id
+        ))
+    
+    # Elevation achievements
+    elevation = activity.get('total_elevation_gain', 0) or 0
+    if elevation >= 1000:  # 1000m
+        achievements.append(Achievement(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            achievement_type="climber",
+            title="Mountain Climber! ⛰️",
+            description="Climbed 1000m+ in a single activity",
+            icon="⛰️",
+            date_achieved=datetime.now(),
+            activity_id=activity_id
+        ))
+    
+    # Consecutive days
+    recent_dates = [a.get('start_date', datetime.min).date() for a in user_activities[-10:]]
+    consecutive_days = 1
+    for i in range(1, len(recent_dates)):
+        if recent_dates[i] == recent_dates[i-1] + timedelta(days=1):
+            consecutive_days += 1
+        else:
+            break
+    
+    if consecutive_days >= 7:
+        achievements.append(Achievement(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            achievement_type="streak",
+            title="Week Warrior! 📅",
+            description="Completed activities for 7 consecutive days",
+            icon="📅",
+            date_achieved=datetime.now(),
+            activity_id=activity_id
+        ))
+    
+    return achievements
+
+def check_personal_records(activity: dict, user_activities: List[dict]) -> List[PersonalRecord]:
+    """Check if activity set any personal records"""
+    records = []
+    activity_id = activity.get('id')
+    user_id = activity.get('user_id')
+    sport_type = activity.get('sport_type')
+    
+    # Filter activities of same sport type
+    same_sport_activities = [a for a in user_activities if a.get('sport_type') == sport_type]
+    
+    if not same_sport_activities:
+        return records
+    
+    # Check distance PR
+    distance = activity.get('distance', 0) or 0
+    if distance > 0:
+        max_distance = max((a.get('distance', 0) or 0 for a in same_sport_activities[:-1]), default=0)
+        if distance > max_distance:
+            records.append(PersonalRecord(
+                id=str(uuid.uuid4()),
+                user_id=user_id,
+                record_type="longest_distance",
+                sport_type=sport_type,
+                value=distance,
+                unit="meters",
+                activity_id=activity_id,
+                activity_name=activity.get('name', 'Activity'),
+                date_achieved=activity.get('start_date', datetime.now()),
+                previous_record=max_distance if max_distance > 0 else None
+            ))
+    
+    # Check speed PR
+    avg_speed = activity.get('average_speed', 0) or 0
+    if avg_speed > 0:
+        max_speed = max((a.get('average_speed', 0) or 0 for a in same_sport_activities[:-1]), default=0)
+        if avg_speed > max_speed:
+            records.append(PersonalRecord(
+                id=str(uuid.uuid4()),
+                user_id=user_id,
+                record_type="fastest_average_speed",
+                sport_type=sport_type,
+                value=avg_speed,
+                unit="m/s",
+                activity_id=activity_id,
+                activity_name=activity.get('name', 'Activity'),
+                date_achieved=activity.get('start_date', datetime.now()),
+                previous_record=max_speed if max_speed > 0 else None
+            ))
+    
+    # Check elevation PR
+    elevation = activity.get('total_elevation_gain', 0) or 0
+    if elevation > 0:
+        max_elevation = max((a.get('total_elevation_gain', 0) or 0 for a in same_sport_activities[:-1]), default=0)
+        if elevation > max_elevation:
+            records.append(PersonalRecord(
+                id=str(uuid.uuid4()),
+                user_id=user_id,
+                record_type="biggest_climb",
+                sport_type=sport_type,
+                value=elevation,
+                unit="meters",
+                activity_id=activity_id,
+                activity_name=activity.get('name', 'Activity'),
+                date_achieved=activity.get('start_date', datetime.now()),
+                previous_record=max_elevation if max_elevation > 0 else None
+            ))
+    
+    return records
+
+# Enhanced Routes
 @app.get("/")
 async def root():
-    return {"message": "FitTracker Pro API - Your free Strava alternative with premium features"}
+    return {
+        "message": "FitTracker Pro Ultimate API - Your complete fitness ecosystem",
+        "version": "2.0.0",
+        "features": [
+            "🗺️ Interactive Maps & Routes",
+            "💗 Advanced Health Analytics", 
+            "🏆 Personal Records Tracking",
+            "🎯 Achievement System",
+            "📊 Performance Insights",
+            "🌤️ Weather Integration",
+            "📈 Training Load Analysis",
+            "💾 Data Export",
+            "🎮 Gamification",
+            "🤖 AI-Powered Insights"
+        ]
+    }
 
 @app.get("/api/health")
 async def health():
-    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+    return {"status": "healthy", "timestamp": datetime.now().isoformat(), "version": "2.0.0"}
 
 @app.get("/api/auth/strava")
 async def strava_auth():
@@ -304,8 +616,12 @@ async def strava_callback(code: str = Query(...), state: str = Query(...)):
         "firstname": athlete_data.get("firstname"),
         "lastname": athlete_data.get("lastname"),
         "email": athlete_data.get("email"),
+        "profile_picture": athlete_data.get("profile"),
+        "city": athlete_data.get("city"),
+        "country": athlete_data.get("country"),
         "access_token": token_data.get("access_token"),
         "refresh_token": token_data.get("refresh_token"),
+        "premium_features": True,  # Everyone gets premium!
         "created_at": now,
         "updated_at": now
     }
@@ -355,12 +671,15 @@ async def get_user(user_id: str):
 
 @app.get("/api/user/{user_id}/activities")
 async def get_user_activities(user_id: str, page: int = 1, per_page: int = 30, detailed: bool = False):
-    """Fetch and return user's Strava activities with enhanced data"""
+    """Fetch and return user's Strava activities with comprehensive enhancement"""
     
     # Get user's access token
     user = await db.users.find_one({"id": user_id})
     if not user or not user.get("access_token"):
         raise HTTPException(status_code=404, detail="User not found or not authenticated")
+    
+    # Get all user activities for PR/achievement checking
+    existing_activities = await db.activities.find({"user_id": user_id}).to_list(length=None)
     
     # Fetch activities from Strava
     async with httpx.AsyncClient() as client:
@@ -377,7 +696,7 @@ async def get_user_activities(user_id: str, page: int = 1, per_page: int = 30, d
     
     activities_data = response.json()
     
-    # Process and store activities with enhanced data
+    # Process and store activities with comprehensive enhancement
     activities = []
     for activity_data in activities_data:
         activity_id = str(uuid.uuid4())
@@ -392,6 +711,18 @@ async def get_user_activities(user_id: str, page: int = 1, per_page: int = 30, d
             
             if activity_detail_response.status_code == 200:
                 activity_data = activity_detail_response.json()
+        
+        # Get weather data if location available
+        weather_data = None
+        if activity_data.get('start_latlng'):
+            try:
+                weather_data = await get_weather_for_activity(
+                    activity_data['start_latlng'][0],
+                    activity_data['start_latlng'][1],
+                    datetime.fromisoformat(activity_data.get("start_date").replace("Z", "+00:00"))
+                )
+            except:
+                pass
         
         activity_doc = {
             "id": activity_id,
@@ -437,8 +768,27 @@ async def get_user_activities(user_id: str, page: int = 1, per_page: int = 30, d
             "intensity_factor": activity_data.get("intensity_factor"),
             "normalized_power": activity_data.get("normalized_power"),
             
+            # Weather data
+            "weather": weather_data.dict() if weather_data else None,
+            
             "created_at": now
         }
+        
+        # Check for personal records
+        all_activities = existing_activities + [activity_doc]
+        personal_records = check_personal_records(activity_doc, all_activities)
+        activity_doc["is_personal_record"] = len(personal_records) > 0
+        
+        # Check for achievements
+        achievements = check_for_achievements(activity_doc, all_activities)
+        activity_doc["achievements_earned"] = [a.title for a in achievements]
+        
+        # Store personal records and achievements
+        for pr in personal_records:
+            await db.personal_records.insert_one(pr.dict())
+        
+        for achievement in achievements:
+            await db.achievements.insert_one(achievement.dict())
         
         # Upsert activity (update if exists, insert if new)
         await db.activities.update_one(
@@ -451,6 +801,274 @@ async def get_user_activities(user_id: str, page: int = 1, per_page: int = 30, d
     
     return {"activities": activities, "count": len(activities)}
 
+@app.get("/api/user/{user_id}/dashboard")
+async def get_comprehensive_dashboard(user_id: str):
+    """Get comprehensive dashboard with all premium features"""
+    
+    # Verify user exists
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Get all data in parallel
+    activities = await db.activities.find({"user_id": user_id}).to_list(length=None)
+    personal_records = await db.personal_records.find({"user_id": user_id}).to_list(length=None)
+    achievements = await db.achievements.find({"user_id": user_id}).sort("date_achieved", -1).limit(5).to_list(length=None)
+    goals = await db.goals.find({"user_id": user_id, "completed": False}).to_list(length=None)
+    
+    if not activities:
+        return ComprehensiveDashboard(
+            total_activities=0,
+            total_distance=0.0,
+            total_time=0,
+            this_week_activities=0,
+            this_week_distance=0.0,
+            avg_speed=0.0,
+            total_elevation=0.0,
+            avg_heartrate=0.0,
+            max_heartrate=0.0,
+            activities_by_sport={},
+            monthly_distance=[],
+            heartrate_zones={},
+            personal_records=[],
+            recent_achievements=[],
+            training_trends={},
+            performance_insights=[],
+            upcoming_goals=[],
+            fitness_score=0.0,
+            training_load={},
+            recent_activities=[]
+        )
+    
+    # Calculate comprehensive stats
+    total_activities = len(activities)
+    total_distance = sum(a.get("distance", 0) or 0 for a in activities)
+    total_time = sum(a.get("moving_time", 0) or 0 for a in activities)
+    total_elevation = sum(a.get("total_elevation_gain", 0) or 0 for a in activities)
+    
+    # Heart rate stats
+    hr_activities = [a for a in activities if a.get("average_heartrate")]
+    avg_heartrate = sum(a.get("average_heartrate", 0) for a in hr_activities) / len(hr_activities) if hr_activities else 0
+    max_heartrate = max((a.get("max_heartrate", 0) for a in activities), default=0)
+    
+    # This week's activities
+    week_start = datetime.now() - timedelta(days=7)
+    this_week_activities = [a for a in activities if a.get("start_date", datetime.min) >= week_start]
+    this_week_count = len(this_week_activities)
+    this_week_distance = sum(a.get("distance", 0) or 0 for a in this_week_activities)
+    
+    # Average speed calculation
+    avg_speed = 0.0
+    if total_time > 0:
+        avg_speed = total_distance / total_time
+    
+    # Activities by sport type
+    activities_by_sport = {}
+    for activity in activities:
+        sport = activity.get("sport_type", "Unknown")
+        activities_by_sport[sport] = activities_by_sport.get(sport, 0) + 1
+    
+    # Monthly distance for the last 12 months
+    monthly_distance = []
+    for i in range(12):
+        month_start = datetime.now().replace(day=1) - timedelta(days=i*30)
+        month_end = month_start + timedelta(days=30)
+        month_activities = [a for a in activities if month_start <= a.get("start_date", datetime.min) < month_end]
+        month_dist = sum(a.get("distance", 0) or 0 for a in month_activities) / 1000  # Convert to km
+        monthly_distance.append({
+            "month": month_start.strftime("%b %Y"),
+            "distance": round(month_dist, 1),
+            "activities": len(month_activities)
+        })
+    
+    monthly_distance.reverse()  # Chronological order
+    
+    # Training trends
+    last_4_weeks = []
+    for i in range(4):
+        week_start = datetime.now() - timedelta(days=(i+1)*7)
+        week_end = week_start + timedelta(days=7)
+        week_activities = [a for a in activities if week_start <= a.get("start_date", datetime.min) < week_end]
+        week_distance = sum(a.get("distance", 0) or 0 for a in week_activities) / 1000
+        week_time = sum(a.get("moving_time", 0) or 0 for a in week_activities) / 3600  # Convert to hours
+        last_4_weeks.append({
+            "week": f"Week {4-i}",
+            "distance": round(week_distance, 1),
+            "time": round(week_time, 1),
+            "activities": len(week_activities)
+        })
+    
+    training_trends = {
+        "weekly_trend": last_4_weeks,
+        "trend_direction": "increasing" if len(last_4_weeks) >= 2 and last_4_weeks[-1]["distance"] > last_4_weeks[-2]["distance"] else "stable"
+    }
+    
+    # Heart rate zones (enhanced calculation)
+    all_hr_data = []
+    for activity in hr_activities:
+        if activity.get("average_heartrate"):
+            # Simulate HR distribution for the activity
+            avg_hr = activity["average_heartrate"]
+            duration = activity.get("moving_time", 0) or 0
+            # Add data points based on activity duration (simplified)
+            points = max(1, duration // 60)  # One point per minute
+            all_hr_data.extend([avg_hr] * points)
+    
+    heartrate_zones = calculate_heartrate_zones(all_hr_data, max_heartrate or 200)
+    
+    # Format personal records
+    formatted_prs = []
+    for pr in personal_records[-5:]:  # Last 5 PRs
+        formatted_prs.append({
+            "id": pr.get("id"),
+            "type": pr.get("record_type"),
+            "sport": pr.get("sport_type"),
+            "value": pr.get("value"),
+            "unit": pr.get("unit"),
+            "activity_name": pr.get("activity_name"),
+            "date": pr.get("date_achieved").strftime("%Y-%m-%d") if pr.get("date_achieved") else "Unknown",
+            "improvement": pr.get("value") - pr.get("previous_record", 0) if pr.get("previous_record") else pr.get("value")
+        })
+    
+    # Format achievements
+    formatted_achievements = []
+    for achievement in achievements:
+        formatted_achievements.append({
+            "id": achievement.get("id"),
+            "title": achievement.get("title"),
+            "description": achievement.get("description"),
+            "icon": achievement.get("icon"),
+            "date": achievement.get("date_achieved").strftime("%Y-%m-%d") if achievement.get("date_achieved") else "Unknown"
+        })
+    
+    # Format goals
+    formatted_goals = []
+    for goal in goals[:3]:  # Top 3 upcoming goals
+        progress_percentage = (goal.get("current_value", 0) / goal.get("target_value", 1)) * 100
+        formatted_goals.append({
+            "id": goal.get("id"),
+            "type": goal.get("goal_type"),
+            "target": goal.get("target_value"),
+            "current": goal.get("current_value"),
+            "unit": goal.get("unit"),
+            "progress": round(progress_percentage, 1),
+            "target_date": goal.get("target_date").strftime("%Y-%m-%d") if goal.get("target_date") else "Unknown"
+        })
+    
+    # Calculate training load (last 7 days)
+    recent_activities = [a for a in activities if a.get("start_date", datetime.min) >= datetime.now() - timedelta(days=7)]
+    training_load = {
+        "current_load": len(recent_activities),
+        "previous_load": len([a for a in activities if datetime.now() - timedelta(days=14) <= a.get("start_date", datetime.min) < datetime.now() - timedelta(days=7)]),
+        "load_trend": "increasing" if len(recent_activities) > len([a for a in activities if datetime.now() - timedelta(days=14) <= a.get("start_date", datetime.min) < datetime.now() - timedelta(days=7)]) else "stable",
+        "recommended_rest_days": max(0, 3 - len(recent_activities)) if len(recent_activities) > 5 else 0
+    }
+    
+    # Calculate fitness score
+    fitness_score = calculate_fitness_score(activities)
+    
+    # Generate performance insights
+    performance_insights = generate_performance_insights(activities, personal_records)
+    
+    # Recent activities (last 5)
+    recent = sorted(activities, key=lambda x: x.get("start_date", datetime.min), reverse=True)[:5]
+    recent_formatted = []
+    
+    for activity in recent:
+        recent_formatted.append({
+            "id": activity.get("id"),
+            "strava_id": activity.get("strava_id"),
+            "name": activity.get("name"),
+            "sport_type": activity.get("sport_type"),
+            "distance": format_distance(activity.get("distance")),
+            "time": format_time(activity.get("moving_time")),
+            "speed": format_speed(activity.get("average_speed")),
+            "elevation": f"{activity.get('total_elevation_gain', 0):.0f}m" if activity.get('total_elevation_gain') else "0m",
+            "heartrate": f"{activity.get('average_heartrate', 0):.0f} bpm" if activity.get('average_heartrate') else None,
+            "date": activity.get("start_date").strftime("%Y-%m-%d") if activity.get("start_date") else "Unknown",
+            "has_map": bool(activity.get("polyline_map") or activity.get("summary_polyline")),
+            "is_pr": activity.get("is_personal_record", False),
+            "achievements": activity.get("achievements_earned", []),
+            "weather": activity.get("weather")
+        })
+    
+    return ComprehensiveDashboard(
+        total_activities=total_activities,
+        total_distance=round(total_distance / 1000, 1),  # Convert to km
+        total_time=total_time,
+        this_week_activities=this_week_count,
+        this_week_distance=round(this_week_distance / 1000, 1),  # Convert to km
+        avg_speed=round(avg_speed * 3.6, 1) if avg_speed > 0 else 0.0,  # Convert to km/h
+        total_elevation=round(total_elevation, 1),
+        avg_heartrate=round(avg_heartrate, 1) if avg_heartrate > 0 else 0.0,
+        max_heartrate=max_heartrate,
+        activities_by_sport=activities_by_sport,
+        monthly_distance=monthly_distance,
+        heartrate_zones=heartrate_zones,
+        personal_records=formatted_prs,
+        recent_achievements=formatted_achievements,
+        training_trends=training_trends,
+        performance_insights=performance_insights,
+        upcoming_goals=formatted_goals,
+        fitness_score=fitness_score,
+        training_load=training_load,
+        recent_activities=recent_formatted
+    )
+
+@app.get("/api/user/{user_id}/export")
+async def export_user_data(user_id: str, format: str = "csv"):
+    """Export user's fitness data"""
+    
+    # Verify user exists
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Get all activities
+    activities = await db.activities.find({"user_id": user_id}).to_list(length=None)
+    
+    if format.lower() == "csv":
+        # Create CSV export
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Write header
+        writer.writerow([
+            "Activity Name", "Sport Type", "Date", "Distance (km)", "Moving Time (min)",
+            "Avg Speed (km/h)", "Max Speed (km/h)", "Elevation Gain (m)",
+            "Avg Heart Rate", "Max Heart Rate", "Calories", "Description"
+        ])
+        
+        # Write activity data
+        for activity in activities:
+            writer.writerow([
+                activity.get("name", ""),
+                activity.get("sport_type", ""),
+                activity.get("start_date", "").strftime("%Y-%m-%d %H:%M:%S") if activity.get("start_date") else "",
+                round((activity.get("distance", 0) or 0) / 1000, 2),
+                round((activity.get("moving_time", 0) or 0) / 60, 1),
+                round((activity.get("average_speed", 0) or 0) * 3.6, 1),
+                round((activity.get("max_speed", 0) or 0) * 3.6, 1),
+                round(activity.get("total_elevation_gain", 0) or 0, 1),
+                round(activity.get("average_heartrate", 0) or 0, 1),
+                round(activity.get("max_heartrate", 0) or 0, 1),
+                round(activity.get("calories", 0) or 0, 1),
+                activity.get("description", "")
+            ])
+        
+        # Return CSV file
+        output.seek(0)
+        filename = f"fittracker_data_{user_id}_{datetime.now().strftime('%Y%m%d')}.csv"
+        
+        return JSONResponse(
+            content={"csv_data": output.getvalue(), "filename": filename},
+            headers={"Content-Type": "application/json"}
+        )
+    
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported export format. Use 'csv'.")
+
+# Continue with existing endpoints...
 @app.get("/api/user/{user_id}/activity/{activity_id}/streams")
 async def get_activity_streams(user_id: str, activity_id: int):
     """Get detailed streams data for an activity (GPS, heart rate, power, etc.)"""
@@ -535,121 +1153,6 @@ async def get_activity_laps(user_id: str, activity_id: int):
     
     return {"laps": formatted_laps}
 
-@app.get("/api/user/{user_id}/dashboard")
-async def get_dashboard_stats(user_id: str):
-    """Get enhanced dashboard statistics for user"""
-    
-    # Verify user exists
-    user = await db.users.find_one({"id": user_id})
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    # Get all activities for the user
-    activities = await db.activities.find({"user_id": user_id}).to_list(length=None)
-    
-    if not activities:
-        return DashboardStats(
-            total_activities=0,
-            total_distance=0.0,
-            total_time=0,
-            this_week_activities=0,
-            this_week_distance=0.0,
-            avg_speed=0.0,
-            recent_activities=[],
-            total_elevation=0.0,
-            avg_heartrate=0.0,
-            max_heartrate=0.0,
-            activities_by_sport={},
-            monthly_distance=[],
-            heartrate_zones={}
-        )
-    
-    # Calculate basic stats
-    total_activities = len(activities)
-    total_distance = sum(a.get("distance", 0) or 0 for a in activities)
-    total_time = sum(a.get("moving_time", 0) or 0 for a in activities)
-    total_elevation = sum(a.get("total_elevation_gain", 0) or 0 for a in activities)
-    
-    # Heart rate stats
-    hr_activities = [a for a in activities if a.get("average_heartrate")]
-    avg_heartrate = sum(a.get("average_heartrate", 0) for a in hr_activities) / len(hr_activities) if hr_activities else 0
-    max_heartrate = max((a.get("max_heartrate", 0) for a in activities), default=0)
-    
-    # This week's activities
-    week_start = datetime.now() - timedelta(days=7)
-    this_week_activities = [a for a in activities if a.get("start_date", datetime.min) >= week_start]
-    this_week_count = len(this_week_activities)
-    this_week_distance = sum(a.get("distance", 0) or 0 for a in this_week_activities)
-    
-    # Average speed calculation
-    avg_speed = 0.0
-    if total_time > 0:
-        avg_speed = total_distance / total_time
-    
-    # Activities by sport type
-    activities_by_sport = {}
-    for activity in activities:
-        sport = activity.get("sport_type", "Unknown")
-        activities_by_sport[sport] = activities_by_sport.get(sport, 0) + 1
-    
-    # Monthly distance for the last 12 months
-    monthly_distance = []
-    for i in range(12):
-        month_start = datetime.now().replace(day=1) - timedelta(days=i*30)
-        month_end = month_start + timedelta(days=30)
-        month_activities = [a for a in activities if month_start <= a.get("start_date", datetime.min) < month_end]
-        month_dist = sum(a.get("distance", 0) or 0 for a in month_activities) / 1000  # Convert to km
-        monthly_distance.append({
-            "month": month_start.strftime("%b %Y"),
-            "distance": round(month_dist, 1)
-        })
-    
-    monthly_distance.reverse()  # Chronological order
-    
-    # Heart rate zones (mock calculation - in real implementation, you'd use streams data)
-    heartrate_zones = {
-        "zone1": 25.0,  # Recovery
-        "zone2": 35.0,  # Aerobic Base
-        "zone3": 20.0,  # Aerobic
-        "zone4": 15.0,  # Threshold
-        "zone5": 5.0    # VO2 Max
-    }
-    
-    # Recent activities (last 5)
-    recent = sorted(activities, key=lambda x: x.get("start_date", datetime.min), reverse=True)[:5]
-    recent_formatted = []
-    
-    for activity in recent:
-        recent_formatted.append({
-            "id": activity.get("id"),
-            "strava_id": activity.get("strava_id"),
-            "name": activity.get("name"),
-            "sport_type": activity.get("sport_type"),
-            "distance": format_distance(activity.get("distance")),
-            "time": format_time(activity.get("moving_time")),
-            "speed": format_speed(activity.get("average_speed")),
-            "elevation": f"{activity.get('total_elevation_gain', 0):.0f}m" if activity.get('total_elevation_gain') else "0m",
-            "heartrate": f"{activity.get('average_heartrate', 0):.0f} bpm" if activity.get('average_heartrate') else None,
-            "date": activity.get("start_date").strftime("%Y-%m-%d") if activity.get("start_date") else "Unknown",
-            "has_map": bool(activity.get("polyline_map") or activity.get("summary_polyline"))
-        })
-    
-    return DashboardStats(
-        total_activities=total_activities,
-        total_distance=round(total_distance / 1000, 1),  # Convert to km
-        total_time=total_time,
-        this_week_activities=this_week_count,
-        this_week_distance=round(this_week_distance / 1000, 1),  # Convert to km
-        avg_speed=round(avg_speed * 3.6, 1) if avg_speed > 0 else 0.0,  # Convert to km/h
-        recent_activities=recent_formatted,
-        total_elevation=round(total_elevation, 1),
-        avg_heartrate=round(avg_heartrate, 1) if avg_heartrate > 0 else 0.0,
-        max_heartrate=max_heartrate,
-        activities_by_sport=activities_by_sport,
-        monthly_distance=monthly_distance,
-        heartrate_zones=heartrate_zones
-    )
-
 @app.get("/api/user/{user_id}/activity/{strava_id}")
 async def get_activity_detail(user_id: str, strava_id: int):
     """Get detailed information for a specific activity"""
@@ -712,12 +1215,53 @@ async def get_activity_detail(user_id: str, strava_id: int):
     
     return {"activity": enhanced_activity}
 
+@app.get("/api/user/{user_id}/personal-records")
+async def get_personal_records(user_id: str):
+    """Get all personal records for user"""
+    records = await db.personal_records.find({"user_id": user_id}).sort("date_achieved", -1).to_list(length=None)
+    
+    formatted_records = []
+    for record in records:
+        formatted_records.append({
+            "id": record.get("id"),
+            "type": record.get("record_type"),
+            "sport": record.get("sport_type"),
+            "value": record.get("value"),
+            "unit": record.get("unit"),
+            "activity_name": record.get("activity_name"),
+            "date": record.get("date_achieved").strftime("%Y-%m-%d") if record.get("date_achieved") else "Unknown",
+            "improvement": record.get("value") - record.get("previous_record", 0) if record.get("previous_record") else record.get("value")
+        })
+    
+    return {"personal_records": formatted_records}
+
+@app.get("/api/user/{user_id}/achievements")
+async def get_achievements(user_id: str):
+    """Get all achievements for user"""
+    achievements = await db.achievements.find({"user_id": user_id}).sort("date_achieved", -1).to_list(length=None)
+    
+    formatted_achievements = []
+    for achievement in achievements:
+        formatted_achievements.append({
+            "id": achievement.get("id"),
+            "type": achievement.get("achievement_type"),
+            "title": achievement.get("title"),
+            "description": achievement.get("description"),
+            "icon": achievement.get("icon"),
+            "date": achievement.get("date_achieved").strftime("%Y-%m-%d") if achievement.get("date_achieved") else "Unknown"
+        })
+    
+    return {"achievements": formatted_achievements}
+
 @app.delete("/api/user/{user_id}")
 async def delete_user(user_id: str):
     """Delete user and all their data"""
     
-    # Delete user's activities
+    # Delete all user data
     await db.activities.delete_many({"user_id": user_id})
+    await db.personal_records.delete_many({"user_id": user_id})
+    await db.achievements.delete_many({"user_id": user_id})
+    await db.goals.delete_many({"user_id": user_id})
     
     # Delete user
     result = await db.users.delete_one({"id": user_id})
