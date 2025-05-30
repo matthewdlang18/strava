@@ -992,6 +992,424 @@ function App() {
   // Continue with other views (activities, records, achievements) - implementing similar premium enhancements...
   // [The rest of the views would follow similar patterns with animations, enhanced UI, and premium features]
 
+  if (currentView === 'activities') {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navigation />
+
+        {/* Activities Content */}
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-900">Your Activities</h2>
+            <div className="flex space-x-2">
+              <motion.button
+                onClick={() => loadActivities(true, false)}
+                disabled={isLoading}
+                className="px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg transition-colors"
+                whileHover={{ scale: 1.05 }}
+              >
+                {isLoading ? 'Syncing...' : 'Sync Latest'}
+              </motion.button>
+              <motion.button
+                onClick={() => loadActivities(true, true)}
+                disabled={isLoading}
+                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg transition-colors"
+                whileHover={{ scale: 1.05 }}
+              >
+                {isLoading ? 'Syncing All...' : 'Sync All Data'}
+              </motion.button>
+            </div>
+          </div>
+
+          {isLoading && activities.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading your activities...</p>
+            </div>
+          ) : activities.length > 0 ? (
+            <div className="grid gap-4">
+              {activities.map((activity) => (
+                <motion.div 
+                  key={activity.id} 
+                  className="bg-white rounded-xl p-6 shadow-sm border hover:shadow-md transition-shadow cursor-pointer activity-card"
+                  onClick={() => loadActivityDetail(activity.strava_id)}
+                  whileHover={{ y: -2 }}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <span className="text-3xl">{getSportIcon(activity.sport_type)}</span>
+                      <div>
+                        <h3 className="font-semibold text-gray-900 text-lg">{activity.name}</h3>
+                        <p className="text-gray-600">
+                          {new Date(activity.start_date).toLocaleDateString()} • {activity.sport_type}
+                        </p>
+                        <div className="flex space-x-2 mt-1">
+                          {(activity.polyline_map || activity.summary_polyline) && (
+                            <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">🗺️ Route</span>
+                          )}
+                          {activity.has_heartrate && (
+                            <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full">💗 HR</span>
+                          )}
+                          {activity.average_watts && (
+                            <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">⚡ Power</span>
+                          )}
+                          {activity.weather && (
+                            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">🌤️ Weather</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="grid grid-cols-4 gap-6 text-center">
+                        <div>
+                          <p className="text-2xl font-bold text-gray-900">
+                            {activity.distance ? (activity.distance / 1000).toFixed(1) : '0.0'}
+                          </p>
+                          <p className="text-sm text-gray-600">km</p>
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold text-gray-900">
+                            {formatTime(activity.moving_time)}
+                          </p>
+                          <p className="text-sm text-gray-600">time</p>
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold text-gray-900">
+                            {activity.average_speed ? (activity.average_speed * 3.6).toFixed(1) : '0.0'}
+                          </p>
+                          <p className="text-sm text-gray-600">km/h</p>
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold text-gray-900">
+                            {activity.total_elevation_gain ? Math.round(activity.total_elevation_gain) : '0'}
+                          </p>
+                          <p className="text-sm text-gray-600">m</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {(activity.average_heartrate || activity.average_watts || activity.calories) && (
+                    <div className="mt-4 pt-4 border-t border-gray-100">
+                      <div className="flex space-x-6 text-sm text-gray-600">
+                        {activity.average_heartrate && (
+                          <span>💗 Avg HR: {Math.round(activity.average_heartrate)} bpm</span>
+                        )}
+                        {activity.average_watts && (
+                          <span>⚡ Avg Power: {Math.round(activity.average_watts)}W</span>
+                        )}
+                        {activity.calories && (
+                          <span>🔥 Calories: {Math.round(activity.calories)}</span>
+                        )}
+                        {activity.kudos_count > 0 && (
+                          <span>👍 Kudos: {activity.kudos_count}</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <div className="text-6xl mb-4">🏃‍♂️</div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">No activities found</h3>
+              <p className="text-gray-600 mb-6">
+                Click "Sync Latest" to fetch your activities from Strava
+              </p>
+              <motion.button
+                onClick={() => loadActivities(true, true)}
+                disabled={isLoading}
+                className="px-6 py-3 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg transition-colors"
+                whileHover={{ scale: 1.05 }}
+              >
+                {isLoading ? 'Syncing...' : 'Sync All Activities'}
+              </motion.button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (currentView === 'records') {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navigation />
+
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-900">Personal Records</h2>
+            <motion.button
+              onClick={loadPersonalRecords}
+              disabled={isLoading}
+              className="px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg transition-colors"
+              whileHover={{ scale: 1.05 }}
+            >
+              {isLoading ? 'Loading...' : 'Refresh'}
+            </motion.button>
+          </div>
+
+          {isLoading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading your personal records...</p>
+            </div>
+          ) : personalRecords.length > 0 ? (
+            <div className="grid gap-4">
+              {personalRecords.map((record, index) => (
+                <motion.div 
+                  key={record.id}
+                  className="bg-white rounded-xl p-6 shadow-sm border hover:shadow-md transition-shadow"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <div className="text-4xl">🏆</div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900 text-lg">{record.type}</h3>
+                        <p className="text-gray-600">{record.sport} • {record.date}</p>
+                        <p className="text-sm text-gray-500">{record.activity_name}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-3xl font-bold text-yellow-600">{record.value} {record.unit}</p>
+                      {record.improvement > 0 && (
+                        <p className="text-sm text-green-600">Improvement: +{record.improvement.toFixed(1)} {record.unit}</p>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <div className="text-6xl mb-4">🏆</div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">No personal records yet</h3>
+              <p className="text-gray-600 mb-6">
+                Complete more activities to set your first personal records!
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (currentView === 'achievements') {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navigation />
+
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-900">Achievements</h2>
+            <motion.button
+              onClick={loadAchievements}
+              disabled={isLoading}
+              className="px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg transition-colors"
+              whileHover={{ scale: 1.05 }}
+            >
+              {isLoading ? 'Loading...' : 'Refresh'}
+            </motion.button>
+          </div>
+
+          {isLoading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading your achievements...</p>
+            </div>
+          ) : achievements.length > 0 ? (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {achievements.map((achievement, index) => (
+                <motion.div 
+                  key={achievement.id}
+                  className="bg-white rounded-xl p-6 shadow-sm border hover:shadow-md transition-shadow text-center"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: index * 0.1 }}
+                  whileHover={{ y: -5 }}
+                >
+                  <div className="text-6xl mb-4">{achievement.icon}</div>
+                  <h3 className="font-bold text-gray-900 text-lg mb-2">{achievement.title}</h3>
+                  <p className="text-gray-600 mb-3">{achievement.description}</p>
+                  <p className="text-sm text-gray-500">Achieved on {achievement.date}</p>
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <div className="text-6xl mb-4">🏅</div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">No achievements yet</h3>
+              <p className="text-gray-600 mb-6">
+                Keep training to unlock your first achievements!
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (currentView === 'activity-detail' && selectedActivity) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navigation />
+
+        {/* Activity Detail Content */}
+        <div className="container mx-auto px-4 py-8">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <motion.button
+              onClick={() => setCurrentView('activities')}
+              className="flex items-center text-gray-600 hover:text-gray-900"
+              whileHover={{ x: -5 }}
+            >
+              <span className="mr-2">←</span>
+              Back to Activities
+            </motion.button>
+            <h2 className="text-2xl font-bold text-gray-900">{selectedActivity.name}</h2>
+            <div className="text-sm text-gray-500">
+              {new Date(selectedActivity.start_date).toLocaleDateString()}
+            </div>
+          </div>
+
+          {/* Activity Summary */}
+          <motion.div 
+            className="bg-white rounded-xl p-6 shadow-sm border mb-6"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-4">
+                <span className="text-4xl">{getSportIcon(selectedActivity.sport_type)}</span>
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900">{selectedActivity.name}</h1>
+                  <p className="text-gray-600">{selectedActivity.sport_type} • {new Date(selectedActivity.start_date).toLocaleString()}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-6 gap-6">
+              <div className="text-center">
+                <p className="text-3xl font-bold text-gray-900">
+                  {selectedActivity.distance ? (selectedActivity.distance / 1000).toFixed(2) : '0.00'}
+                </p>
+                <p className="text-sm text-gray-600">Distance (km)</p>
+              </div>
+              <div className="text-center">
+                <p className="text-3xl font-bold text-gray-900">
+                  {formatTime(selectedActivity.moving_time)}
+                </p>
+                <p className="text-sm text-gray-600">Moving Time</p>
+              </div>
+              <div className="text-center">
+                <p className="text-3xl font-bold text-gray-900">
+                  {selectedActivity.average_speed ? (selectedActivity.average_speed * 3.6).toFixed(1) : '0.0'}
+                </p>
+                <p className="text-sm text-gray-600">Avg Speed (km/h)</p>
+              </div>
+              <div className="text-center">
+                <p className="text-3xl font-bold text-gray-900">
+                  {selectedActivity.total_elevation_gain ? Math.round(selectedActivity.total_elevation_gain) : '0'}
+                </p>
+                <p className="text-sm text-gray-600">Elevation (m)</p>
+              </div>
+              <div className="text-center">
+                <p className="text-3xl font-bold text-gray-900">
+                  {selectedActivity.average_heartrate ? Math.round(selectedActivity.average_heartrate) : '--'}
+                </p>
+                <p className="text-sm text-gray-600">Avg HR (bpm)</p>
+              </div>
+              <div className="text-center">
+                <p className="text-3xl font-bold text-gray-900">
+                  {selectedActivity.average_watts ? Math.round(selectedActivity.average_watts) : '--'}
+                </p>
+                <p className="text-sm text-gray-600">Avg Power (W)</p>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Map */}
+          {selectedActivity.route_coordinates && selectedActivity.route_coordinates.length > 0 && (
+            <motion.div 
+              className="bg-white rounded-xl p-6 shadow-sm border mb-6"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <h3 className="text-lg font-semibold mb-4 text-gray-900">Route Map</h3>
+              <div className="h-96 rounded-lg overflow-hidden">
+                <MapContainer
+                  center={selectedActivity.route_coordinates[0]}
+                  zoom={13}
+                  style={{ height: '100%', width: '100%' }}
+                >
+                  <TileLayer
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  />
+                  <Polyline 
+                    positions={selectedActivity.route_coordinates} 
+                    color={getSportColor(selectedActivity.sport_type)}
+                    weight={4}
+                  />
+                  {selectedActivity.start_latlng && (
+                    <Marker position={selectedActivity.start_latlng}>
+                      <Popup>Start</Popup>
+                    </Marker>
+                  )}
+                  {selectedActivity.end_latlng && (
+                    <Marker position={selectedActivity.end_latlng}>
+                      <Popup>Finish</Popup>
+                    </Marker>
+                  )}
+                </MapContainer>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Activity Details */}
+          <motion.div 
+            className="bg-white rounded-xl p-6 shadow-sm border"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+          >
+            <h3 className="text-lg font-semibold mb-4 text-gray-900">Activity Details</h3>
+            <div className="grid md:grid-cols-2 gap-6">
+              {selectedActivity.weather && (
+                <div>
+                  <h4 className="font-medium text-gray-700 mb-2">Weather Conditions</h4>
+                  <div className="flex items-center space-x-4 text-sm text-gray-600">
+                    <span>🌡️ {selectedActivity.weather.temperature}°C</span>
+                    <span>☁️ {selectedActivity.weather.condition}</span>
+                    <span>💨 {selectedActivity.weather.wind_speed} km/h</span>
+                  </div>
+                </div>
+              )}
+              
+              {selectedActivity.social_stats && (
+                <div>
+                  <h4 className="font-medium text-gray-700 mb-2">Social Stats</h4>
+                  <div className="flex items-center space-x-4 text-sm text-gray-600">
+                    <span>👍 {selectedActivity.social_stats.kudos_count} Kudos</span>
+                    <span>💬 {selectedActivity.social_stats.comment_count} Comments</span>
+                    <span>📸 {selectedActivity.social_stats.photo_count} Photos</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
+
   return null;
 }
 
