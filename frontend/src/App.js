@@ -399,7 +399,7 @@ function App() {
       
       if (response.ok) {
         setActivities(data.activities || []);
-        setCurrentView('activities');
+        navigateToView('activities');
         
         if (syncAll) {
           alert(`Successfully synced ${data.count} activities from ${data.synced_pages || 1} pages!`);
@@ -425,7 +425,7 @@ function App() {
       
       if (response.ok) {
         setPersonalRecords(data.personal_records || []);
-        setCurrentView('records');
+        navigateToView('records');
       } else {
         throw new Error(data.detail || 'Failed to load personal records');
       }
@@ -447,7 +447,7 @@ function App() {
       
       if (response.ok) {
         setAchievements(data.achievements || []);
-        setCurrentView('achievements');
+        navigateToView('achievements');
       } else {
         throw new Error(data.detail || 'Failed to load achievements');
       }
