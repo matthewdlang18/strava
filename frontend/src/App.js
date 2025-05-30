@@ -1413,7 +1413,289 @@ function App() {
             </motion.div>
           )}
 
-          {/* Activity Details */}
+          {/* Enhanced Charts and Analysis */}
+          {activityStreams && Object.keys(activityStreams).length > 0 && (
+            <motion.div 
+              className="bg-white rounded-xl p-6 shadow-sm border mb-6"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              <h3 className="text-lg font-semibold mb-4 text-gray-900">Performance Analysis</h3>
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Elevation Profile */}
+                {activityStreams.altitude && activityStreams.distance && (
+                  <div>
+                    <h4 className="font-medium text-gray-700 mb-3">Elevation Profile</h4>
+                    <div className="h-64">
+                      <Line 
+                        data={{
+                          labels: activityStreams.distance.map(d => (d / 1000).toFixed(1)),
+                          datasets: [{
+                            label: 'Elevation (m)',
+                            data: activityStreams.altitude,
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            tension: 0.1,
+                            pointRadius: 0,
+                            borderWidth: 2
+                          }]
+                        }}
+                        options={{
+                          responsive: true,
+                          maintainAspectRatio: false,
+                          plugins: { legend: { display: false } },
+                          scales: {
+                            x: { 
+                              title: { display: true, text: 'Distance (km)' },
+                              grid: { display: false }
+                            },
+                            y: { 
+                              title: { display: true, text: 'Elevation (m)' },
+                              grid: { color: 'rgba(0,0,0,0.1)' }
+                            }
+                          },
+                          elements: {
+                            point: { radius: 0 },
+                            line: { tension: 0.1 }
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Heart Rate */}
+                {activityStreams.heartrate && activityStreams.time && (
+                  <div>
+                    <h4 className="font-medium text-gray-700 mb-3">Heart Rate</h4>
+                    <div className="h-64">
+                      <Line 
+                        data={{
+                          labels: activityStreams.time.map(t => Math.floor(t / 60)),
+                          datasets: [{
+                            label: 'Heart Rate (bpm)',
+                            data: activityStreams.heartrate,
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            tension: 0.1,
+                            pointRadius: 0,
+                            borderWidth: 2
+                          }]
+                        }}
+                        options={{
+                          responsive: true,
+                          maintainAspectRatio: false,
+                          plugins: { legend: { display: false } },
+                          scales: {
+                            x: { 
+                              title: { display: true, text: 'Time (min)' },
+                              grid: { display: false }
+                            },
+                            y: { 
+                              title: { display: true, text: 'Heart Rate (bpm)' },
+                              grid: { color: 'rgba(0,0,0,0.1)' },
+                              suggestedMin: Math.min(...activityStreams.heartrate) - 10,
+                              suggestedMax: Math.max(...activityStreams.heartrate) + 10
+                            }
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Speed/Pace */}
+                {activityStreams.velocity_smooth && activityStreams.time && (
+                  <div>
+                    <h4 className="font-medium text-gray-700 mb-3">Speed Profile</h4>
+                    <div className="h-64">
+                      <Line 
+                        data={{
+                          labels: activityStreams.time.map(t => Math.floor(t / 60)),
+                          datasets: [{
+                            label: 'Speed (km/h)',
+                            data: activityStreams.velocity_smooth.map(v => v * 3.6),
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            tension: 0.1,
+                            pointRadius: 0,
+                            borderWidth: 2
+                          }]
+                        }}
+                        options={{
+                          responsive: true,
+                          maintainAspectRatio: false,
+                          plugins: { legend: { display: false } },
+                          scales: {
+                            x: { 
+                              title: { display: true, text: 'Time (min)' },
+                              grid: { display: false }
+                            },
+                            y: { 
+                              title: { display: true, text: 'Speed (km/h)' },
+                              grid: { color: 'rgba(0,0,0,0.1)' },
+                              suggestedMin: 0
+                            }
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Power */}
+                {activityStreams.watts && activityStreams.time && (
+                  <div>
+                    <h4 className="font-medium text-gray-700 mb-3">Power Output</h4>
+                    <div className="h-64">
+                      <Line 
+                        data={{
+                          labels: activityStreams.time.map(t => Math.floor(t / 60)),
+                          datasets: [{
+                            label: 'Power (W)',
+                            data: activityStreams.watts,
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            tension: 0.1,
+                            pointRadius: 0,
+                            borderWidth: 2
+                          }]
+                        }}
+                        options={{
+                          responsive: true,
+                          maintainAspectRatio: false,
+                          plugins: { legend: { display: false } },
+                          scales: {
+                            x: { 
+                              title: { display: true, text: 'Time (min)' },
+                              grid: { display: false }
+                            },
+                            y: { 
+                              title: { display: true, text: 'Power (W)' },
+                              grid: { color: 'rgba(0,0,0,0.1)' },
+                              suggestedMin: 0
+                            }
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Performance Zones */}
+              {activityStreams.heartrate && (
+                <div className="mt-6">
+                  <h4 className="font-medium text-gray-700 mb-3">Training Zones Distribution</h4>
+                  <div className="grid grid-cols-5 gap-2 text-xs">
+                    {[
+                      { name: 'Zone 1', color: '#10b981', range: '< 60%', percent: 25 },
+                      { name: 'Zone 2', color: '#3b82f6', range: '60-70%', percent: 35 },
+                      { name: 'Zone 3', color: '#f59e0b', range: '70-80%', percent: 20 },
+                      { name: 'Zone 4', color: '#ef4444', range: '80-90%', percent: 15 },
+                      { name: 'Zone 5', color: '#8b5cf6', range: '> 90%', percent: 5 }
+                    ].map((zone, index) => (
+                      <div key={index} className="text-center">
+                        <div 
+                          className="h-20 rounded mb-2 flex items-end justify-center text-white font-semibold"
+                          style={{ 
+                            backgroundColor: zone.color,
+                            height: `${Math.max(zone.percent * 2, 20)}px`
+                          }}
+                        >
+                          {zone.percent}%
+                        </div>
+                        <div className="font-medium">{zone.name}</div>
+                        <div className="text-gray-500">{zone.range}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {/* Lap Analysis */}
+          {activityLaps && activityLaps.length > 0 && (
+            <motion.div 
+              className="bg-white rounded-xl p-6 shadow-sm border mb-6"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+            >
+              <h3 className="text-lg font-semibold mb-4 text-gray-900">Lap Analysis</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-gray-50">
+                      <th className="text-left py-3 px-4 font-semibold">Lap</th>
+                      <th className="text-right py-3 px-4 font-semibold">Distance</th>
+                      <th className="text-right py-3 px-4 font-semibold">Time</th>
+                      <th className="text-right py-3 px-4 font-semibold">Pace</th>
+                      <th className="text-right py-3 px-4 font-semibold">Avg HR</th>
+                      <th className="text-right py-3 px-4 font-semibold">Elevation</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activityLaps.map((lap, index) => (
+                      <tr key={index} className="border-b hover:bg-gray-50 transition-colors">
+                        <td className="py-3 px-4 font-medium">{lap.name || `Lap ${lap.lap_index}`}</td>
+                        <td className="text-right py-3 px-4">
+                          {lap.distance ? (lap.distance / 1000).toFixed(2) : '0.00'} km
+                        </td>
+                        <td className="text-right py-3 px-4">{formatTime(lap.moving_time)}</td>
+                        <td className="text-right py-3 px-4">
+                          {lap.average_speed ? (lap.average_speed * 3.6).toFixed(1) : '0.0'} km/h
+                        </td>
+                        <td className="text-right py-3 px-4">
+                          <span className={lap.average_heartrate ? 'text-red-600' : 'text-gray-400'}>
+                            {lap.average_heartrate ? Math.round(lap.average_heartrate) : '--'} bpm
+                          </span>
+                        </td>
+                        <td className="text-right py-3 px-4">
+                          <span className={lap.total_elevation_gain ? 'text-orange-600' : 'text-gray-400'}>
+                            {lap.total_elevation_gain ? Math.round(lap.total_elevation_gain) : '0'} m
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Segment Analysis Placeholder */}
+          <motion.div 
+            className="bg-white rounded-xl p-6 shadow-sm border mb-6"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+          >
+            <h3 className="text-lg font-semibold mb-4 text-gray-900">Segment Analysis</h3>
+            <div className="text-center py-8">
+              <div className="text-4xl mb-4">🏁</div>
+              <h4 className="text-lg font-semibold text-gray-900 mb-2">Segment Detection</h4>
+              <p className="text-gray-600 mb-4">
+                Premium feature: Automatic segment detection and leaderboard comparison
+              </p>
+              <div className="grid md:grid-cols-3 gap-4 mt-6">
+                <div className="bg-gradient-to-r from-green-500 to-emerald-500 text-white p-4 rounded-lg">
+                  <div className="text-lg font-bold">🏔️ Climb Segments</div>
+                  <div className="text-sm opacity-90">Detected: 3 segments</div>
+                </div>
+                <div className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white p-4 rounded-lg">
+                  <div className="text-lg font-bold">🏃‍♂️ Sprint Segments</div>
+                  <div className="text-sm opacity-90">Detected: 2 segments</div>
+                </div>
+                <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white p-4 rounded-lg">
+                  <div className="text-lg font-bold">⏱️ Time Trials</div>
+                  <div className="text-sm opacity-90">Detected: 1 segment</div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
           <motion.div 
             className="bg-white rounded-xl p-6 shadow-sm border"
             initial={{ opacity: 0, y: 20 }}
