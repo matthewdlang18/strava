@@ -370,6 +370,9 @@ def main():
     # Premium features tests
     premium_success = tester.test_premium_features()
     
+    # Activity detail test
+    activity_detail_success = tester.test_activity_detail()
+    
     # Print results
     print(f"\n📊 Basic tests passed: {tester.tests_passed}/{tester.tests_run}")
     if tester.premium_tests_run > 0:
@@ -377,7 +380,9 @@ def main():
     else:
         print(f"📊 Premium features: ❌ Not fully working")
     
-    return 0 if all(basic_tests) and premium_success else 1
+    print(f"📊 Activity detail test: {'✅ Passed' if activity_detail_success else '❌ Failed'}")
+    
+    return 0 if all(basic_tests) and premium_success and activity_detail_success else 1
 
 if __name__ == "__main__":
     # Run as a script
