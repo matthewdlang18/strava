@@ -1474,48 +1474,7 @@ function App() {
               transition={{ delay: 0.2 }}
             >
               <h3 className="text-lg font-semibold mb-4 text-gray-900">Route Map</h3>
-              <div className="h-96 rounded-lg overflow-hidden">
-                <MapContainer
-                  key={`map-${selectedActivity.strava_id}-${Date.now()}`} // Force new instance
-                  center={selectedActivity.route_coordinates[0]}
-                  zoom={13}
-                  style={{ height: '100%', width: '100%' }}
-                  scrollWheelZoom={true}
-                >
-                  <TileLayer
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                  />
-                  <Polyline 
-                    positions={selectedActivity.route_coordinates} 
-                    color={getSportColor(selectedActivity.sport_type)}
-                    weight={4}
-                    opacity={0.8}
-                  />
-                  {selectedActivity.start_latlng && (
-                    <Marker position={selectedActivity.start_latlng}>
-                      <Popup>
-                        <div className="text-center">
-                          <div className="text-green-600 font-bold">🚀 START</div>
-                          <div className="text-sm">{selectedActivity.name}</div>
-                        </div>
-                      </Popup>
-                    </Marker>
-                  )}
-                  {selectedActivity.end_latlng && (
-                    <Marker position={selectedActivity.end_latlng}>
-                      <Popup>
-                        <div className="text-center">
-                          <div className="text-red-600 font-bold">🏁 FINISH</div>
-                          <div className="text-sm">
-                            {selectedActivity.distance ? `${(selectedActivity.distance / 1000).toFixed(1)} km` : 'Unknown distance'}
-                          </div>
-                        </div>
-                      </Popup>
-                    </Marker>
-                  )}
-                </MapContainer>
-              </div>
+              <ActivityMap activity={selectedActivity} />
               
               {/* Route Stats */}
               <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
