@@ -588,81 +588,104 @@ async def strava_auth():
 async def strava_callback(code: str = Query(...), state: str = Query(...)):
     """Handle Strava OAuth callback"""
     
-    # Verify state
-    state_doc = await db.oauth_states.find_one({"state": state})
-    if not state_doc:
-        raise HTTPException(status_code=400, detail="Invalid state parameter")
-    
-    # Clean up used state
-    await db.oauth_states.delete_one({"state": state})
-    
-    # Exchange code for tokens
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            "https://www.strava.com/oauth/token",
-            data={
-                "client_id": STRAVA_CLIENT_ID,
-                "client_secret": STRAVA_CLIENT_SECRET,
-                "code": code,
-                "grant_type": "authorization_code"
-            }
-        )
-    
-    if response.status_code != 200:
-        raise HTTPException(status_code=400, detail="Failed to exchange code for token")
-    
-    token_data = response.json()
-    athlete_data = token_data.get("athlete", {})
-    
-    # Create or update user
-    user_id = str(uuid.uuid4())
-    now = datetime.now()
-    
-    user_doc = {
-        "id": user_id,
-        "strava_id": athlete_data.get("id"),
-        "firstname": athlete_data.get("firstname"),
-        "lastname": athlete_data.get("lastname"),
-        "email": athlete_data.get("email"),
-        "profile_picture": athlete_data.get("profile"),
-        "city": athlete_data.get("city"),
-        "country": athlete_data.get("country"),
-        "access_token": token_data.get("access_token"),
-        "refresh_token": token_data.get("refresh_token"),
-        "premium_features": True,  # Everyone gets premium!
-        "created_at": now,
-        "updated_at": now
-    }
-    
-    # Check if user already exists
-    existing_user = await db.users.find_one({"strava_id": athlete_data.get("id")})
-    if existing_user:
-        # Update existing user
-        await db.users.update_one(
-            {"strava_id": athlete_data.get("id")},
-            {"$set": {
-                "access_token": token_data.get("access_token"),
-                "refresh_token": token_data.get("refresh_token"),
-                "updated_at": now
-            }}
-        )
-        user_id = existing_user["id"]
-    else:
-        # Create new user
-        await db.users.insert_one(user_doc)
-    
-    # Redirect back to frontend with success data
-    frontend_url = f"https://ca56087f-904a-47d2-9ebe-bb5f787bfe7e.preview.emergentagent.com"
-    redirect_params = {
-        "auth_success": "true",
-        "user_id": user_id,
-        "athlete_id": athlete_data.get("id"),
-        "athlete_name": f"{athlete_data.get('firstname', '')} {athlete_data.get('lastname', '')}".strip()
-    }
-    
-    # Create redirect URL with parameters
-    redirect_url = f"{frontend_url}?{urlencode(redirect_params)}"
-    return RedirectResponse(url=redirect_url)
+    try:
+        # Verify state - but be more lenient to handle browser navigation issues
+        state_doc = await db.oauth_states.find_one({"state": state})
+        if not state_doc:
+            # Check if state is expired but recent (within last hour for navigation scenarios)
+            recent_state = await db.oauth_states.find_one({
+                "state": state,
+                "created_at": {"$gte": datetime.now() - timedelta(hours=1)}
+            })
+            if not recent_state:
+                print(f"Invalid or expired state parameter: {state}")
+                # Instead of raising error, redirect to frontend with error
+                frontend_url = f"https://ca56087f-904a-47d2-9ebe-bb5f787bfe7e.preview.emergentagent.com"
+                redirect_url = f"{frontend_url}?auth_error=invalid_state"
+                return RedirectResponse(url=redirect_url)
+        
+        # Clean up used state (but don't fail if it doesn't exist)
+        try:
+            await db.oauth_states.delete_one({"state": state})
+        except:
+            pass  # Don't fail if state cleanup fails
+        
+        # Exchange code for tokens
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://www.strava.com/oauth/token",
+                data={
+                    "client_id": STRAVA_CLIENT_ID,
+                    "client_secret": STRAVA_CLIENT_SECRET,
+                    "code": code,
+                    "grant_type": "authorization_code"
+                }
+            )
+        
+        if response.status_code != 200:
+            print(f"Failed to exchange code for token: {response.status_code} - {response.text}")
+            frontend_url = f"https://ca56087f-904a-47d2-9ebe-bb5f787bfe7e.preview.emergentagent.com"
+            redirect_url = f"{frontend_url}?auth_error=token_exchange_failed"
+            return RedirectResponse(url=redirect_url)
+        
+        token_data = response.json()
+        athlete_data = token_data.get("athlete", {})
+        
+        # Create or update user
+        user_id = str(uuid.uuid4())
+        now = datetime.now()
+        
+        user_doc = {
+            "id": user_id,
+            "strava_id": athlete_data.get("id"),
+            "firstname": athlete_data.get("firstname"),
+            "lastname": athlete_data.get("lastname"),
+            "email": athlete_data.get("email"),
+            "profile_picture": athlete_data.get("profile"),
+            "city": athlete_data.get("city"),
+            "country": athlete_data.get("country"),
+            "access_token": token_data.get("access_token"),
+            "refresh_token": token_data.get("refresh_token"),
+            "premium_features": True,  # Everyone gets premium!
+            "created_at": now,
+            "updated_at": now
+        }
+        
+        # Check if user already exists
+        existing_user = await db.users.find_one({"strava_id": athlete_data.get("id")})
+        if existing_user:
+            # Update existing user
+            await db.users.update_one(
+                {"strava_id": athlete_data.get("id")},
+                {"$set": {
+                    "access_token": token_data.get("access_token"),
+                    "refresh_token": token_data.get("refresh_token"),
+                    "updated_at": now
+                }}
+            )
+            user_id = existing_user["id"]
+        else:
+            # Create new user
+            await db.users.insert_one(user_doc)
+        
+        # Redirect back to frontend with success data
+        frontend_url = f"https://ca56087f-904a-47d2-9ebe-bb5f787bfe7e.preview.emergentagent.com"
+        redirect_params = {
+            "auth_success": "true",
+            "user_id": user_id,
+            "athlete_id": athlete_data.get("id"),
+            "athlete_name": f"{athlete_data.get('firstname', '')} {athlete_data.get('lastname', '')}".strip()
+        }
+        
+        # Create redirect URL with parameters
+        redirect_url = f"{frontend_url}?{urlencode(redirect_params)}"
+        return RedirectResponse(url=redirect_url)
+        
+    except Exception as e:
+        print(f"Error in OAuth callback: {e}")
+        frontend_url = f"https://ca56087f-904a-47d2-9ebe-bb5f787bfe7e.preview.emergentagent.com"
+        redirect_url = f"{frontend_url}?auth_error=callback_error"
+        return RedirectResponse(url=redirect_url)
 
 @app.get("/api/user/{user_id}")
 async def get_user(user_id: str):
