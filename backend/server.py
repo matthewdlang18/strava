@@ -12,6 +12,8 @@ import asyncio
 import httpx
 from urllib.parse import urlencode
 import secrets
+import polyline
+import json
 
 # Load environment variables
 load_dotenv()
@@ -73,7 +75,7 @@ class User(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-class Activity(BaseModel):
+class ActivityDetailed(BaseModel):
     id: str
     strava_id: int
     user_id: str
@@ -88,7 +90,54 @@ class Activity(BaseModel):
     average_heartrate: Optional[float] = None
     max_heartrate: Optional[float] = None
     start_date: datetime
+    
+    # Enhanced fields
+    polyline_map: Optional[str] = None
+    summary_polyline: Optional[str] = None
+    start_latlng: Optional[List[float]] = None
+    end_latlng: Optional[List[float]] = None
+    
+    # Performance metrics
+    average_cadence: Optional[float] = None
+    average_watts: Optional[float] = None
+    weighted_average_watts: Optional[int] = None
+    kilojoules: Optional[float] = None
+    device_watts: Optional[bool] = None
+    has_heartrate: Optional[bool] = None
+    
+    # Additional details
+    description: Optional[str] = None
+    calories: Optional[float] = None
+    has_kudos: Optional[bool] = None
+    kudos_count: Optional[int] = None
+    comment_count: Optional[int] = None
+    photo_count: Optional[int] = None
+    
+    # Training metrics
+    suffer_score: Optional[float] = None
+    training_stress_score: Optional[float] = None
+    intensity_factor: Optional[float] = None
+    normalized_power: Optional[int] = None
+    
     created_at: datetime
+
+class ActivityLaps(BaseModel):
+    id: str
+    activity_id: str
+    lap_index: int
+    name: Optional[str] = None
+    elapsed_time: Optional[int] = None
+    moving_time: Optional[int] = None
+    start_date: Optional[datetime] = None
+    distance: Optional[float] = None
+    start_index: Optional[int] = None
+    end_index: Optional[int] = None
+    total_elevation_gain: Optional[float] = None
+    average_speed: Optional[float] = None
+    max_speed: Optional[float] = None
+    average_cadence: Optional[float] = None
+    average_heartrate: Optional[float] = None
+    max_heartrate: Optional[float] = None
 
 class DashboardStats(BaseModel):
     total_activities: int
@@ -98,6 +147,27 @@ class DashboardStats(BaseModel):
     this_week_distance: float
     avg_speed: float
     recent_activities: List[Dict[str, Any]]
+    
+    # Enhanced stats
+    total_elevation: float
+    avg_heartrate: float
+    max_heartrate: float
+    activities_by_sport: Dict[str, int]
+    monthly_distance: List[Dict[str, Any]]
+    heartrate_zones: Dict[str, Any]
+
+class ActivityStreams(BaseModel):
+    time: Optional[List[int]] = None
+    latlng: Optional[List[List[float]]] = None
+    distance: Optional[List[float]] = None
+    altitude: Optional[List[float]] = None
+    velocity_smooth: Optional[List[float]] = None
+    heartrate: Optional[List[int]] = None
+    cadence: Optional[List[int]] = None
+    watts: Optional[List[int]] = None
+    temp: Optional[List[int]] = None
+    moving: Optional[List[bool]] = None
+    grade_smooth: Optional[List[float]] = None
 
 # Helper functions
 def generate_state() -> str:
@@ -127,10 +197,44 @@ def format_speed(mps: float) -> str:
     kmh = mps * 3.6
     return f"{kmh:.1f} km/h"
 
+def calculate_heartrate_zones(heartrate_data: List[int], max_hr: int = 200) -> Dict[str, Any]:
+    """Calculate time spent in different heart rate zones"""
+    if not heartrate_data:
+        return {"zone1": 0, "zone2": 0, "zone3": 0, "zone4": 0, "zone5": 0}
+    
+    zones = {"zone1": 0, "zone2": 0, "zone3": 0, "zone4": 0, "zone5": 0}
+    
+    for hr in heartrate_data:
+        if hr < max_hr * 0.6:
+            zones["zone1"] += 1
+        elif hr < max_hr * 0.7:
+            zones["zone2"] += 1
+        elif hr < max_hr * 0.8:
+            zones["zone3"] += 1
+        elif hr < max_hr * 0.9:
+            zones["zone4"] += 1
+        else:
+            zones["zone5"] += 1
+    
+    # Convert to percentages
+    total = sum(zones.values())
+    if total > 0:
+        for zone in zones:
+            zones[zone] = round((zones[zone] / total) * 100, 1)
+    
+    return zones
+
+def decode_polyline(encoded_polyline: str) -> List[List[float]]:
+    """Decode Strava's polyline into lat/lng coordinates"""
+    try:
+        return polyline.decode(encoded_polyline)
+    except:
+        return []
+
 # Routes
 @app.get("/")
 async def root():
-    return {"message": "FitTracker Pro API - Your free Strava alternative"}
+    return {"message": "FitTracker Pro API - Your free Strava alternative with premium features"}
 
 @app.get("/api/health")
 async def health():
@@ -250,8 +354,8 @@ async def get_user(user_id: str):
     return user
 
 @app.get("/api/user/{user_id}/activities")
-async def get_user_activities(user_id: str, page: int = 1, per_page: int = 30):
-    """Fetch and return user's Strava activities"""
+async def get_user_activities(user_id: str, page: int = 1, per_page: int = 30, detailed: bool = False):
+    """Fetch and return user's Strava activities with enhanced data"""
     
     # Get user's access token
     user = await db.users.find_one({"id": user_id})
@@ -273,11 +377,21 @@ async def get_user_activities(user_id: str, page: int = 1, per_page: int = 30):
     
     activities_data = response.json()
     
-    # Process and store activities
+    # Process and store activities with enhanced data
     activities = []
     for activity_data in activities_data:
         activity_id = str(uuid.uuid4())
         now = datetime.now()
+        
+        # If detailed is requested, fetch full activity details
+        if detailed:
+            activity_detail_response = await client.get(
+                f"https://www.strava.com/api/v3/activities/{activity_data.get('id')}",
+                headers={"Authorization": f"Bearer {user['access_token']}"}
+            )
+            
+            if activity_detail_response.status_code == 200:
+                activity_data = activity_detail_response.json()
         
         activity_doc = {
             "id": activity_id,
@@ -294,6 +408,35 @@ async def get_user_activities(user_id: str, page: int = 1, per_page: int = 30):
             "average_heartrate": activity_data.get("average_heartrate"),
             "max_heartrate": activity_data.get("max_heartrate"),
             "start_date": datetime.fromisoformat(activity_data.get("start_date").replace("Z", "+00:00")),
+            
+            # Enhanced fields
+            "polyline_map": activity_data.get("map", {}).get("polyline"),
+            "summary_polyline": activity_data.get("map", {}).get("summary_polyline"),
+            "start_latlng": activity_data.get("start_latlng"),
+            "end_latlng": activity_data.get("end_latlng"),
+            
+            # Performance metrics
+            "average_cadence": activity_data.get("average_cadence"),
+            "average_watts": activity_data.get("average_watts"),
+            "weighted_average_watts": activity_data.get("weighted_average_watts"),
+            "kilojoules": activity_data.get("kilojoules"),
+            "device_watts": activity_data.get("device_watts"),
+            "has_heartrate": activity_data.get("has_heartrate"),
+            
+            # Additional details
+            "description": activity_data.get("description"),
+            "calories": activity_data.get("calories"),
+            "has_kudos": activity_data.get("has_kudos"),
+            "kudos_count": activity_data.get("kudos_count"),
+            "comment_count": activity_data.get("comment_count"),
+            "photo_count": activity_data.get("photo_count"),
+            
+            # Training metrics
+            "suffer_score": activity_data.get("suffer_score"),
+            "training_stress_score": activity_data.get("training_stress_score"),
+            "intensity_factor": activity_data.get("intensity_factor"),
+            "normalized_power": activity_data.get("normalized_power"),
+            
             "created_at": now
         }
         
@@ -308,9 +451,93 @@ async def get_user_activities(user_id: str, page: int = 1, per_page: int = 30):
     
     return {"activities": activities, "count": len(activities)}
 
+@app.get("/api/user/{user_id}/activity/{activity_id}/streams")
+async def get_activity_streams(user_id: str, activity_id: int):
+    """Get detailed streams data for an activity (GPS, heart rate, power, etc.)"""
+    
+    # Get user's access token
+    user = await db.users.find_one({"id": user_id})
+    if not user or not user.get("access_token"):
+        raise HTTPException(status_code=404, detail="User not found or not authenticated")
+    
+    # Available stream types
+    stream_types = "time,latlng,distance,altitude,velocity_smooth,heartrate,cadence,watts,temp,moving,grade_smooth"
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"https://www.strava.com/api/v3/activities/{activity_id}/streams",
+            headers={"Authorization": f"Bearer {user['access_token']}"},
+            params={
+                "keys": stream_types,
+                "key_by_type": "true"
+            }
+        )
+    
+    if response.status_code == 401:
+        raise HTTPException(status_code=401, detail="Strava token expired")
+    elif response.status_code != 200:
+        return {"streams": {}}
+    
+    streams_data = response.json()
+    
+    # Format streams data
+    formatted_streams = {}
+    for stream_type, stream_data in streams_data.items():
+        if stream_data and stream_data.get("data"):
+            formatted_streams[stream_type] = stream_data["data"]
+    
+    return {"streams": formatted_streams}
+
+@app.get("/api/user/{user_id}/activity/{activity_id}/laps")
+async def get_activity_laps(user_id: str, activity_id: int):
+    """Get lap data for an activity"""
+    
+    # Get user's access token
+    user = await db.users.find_one({"id": user_id})
+    if not user or not user.get("access_token"):
+        raise HTTPException(status_code=404, detail="User not found or not authenticated")
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"https://www.strava.com/api/v3/activities/{activity_id}/laps",
+            headers={"Authorization": f"Bearer {user['access_token']}"}
+        )
+    
+    if response.status_code == 401:
+        raise HTTPException(status_code=401, detail="Strava token expired")
+    elif response.status_code != 200:
+        return {"laps": []}
+    
+    laps_data = response.json()
+    
+    # Format and store laps
+    formatted_laps = []
+    for i, lap_data in enumerate(laps_data):
+        lap_doc = {
+            "id": str(uuid.uuid4()),
+            "activity_id": str(activity_id),
+            "lap_index": i + 1,
+            "name": lap_data.get("name", f"Lap {i + 1}"),
+            "elapsed_time": lap_data.get("elapsed_time"),
+            "moving_time": lap_data.get("moving_time"),
+            "start_date": datetime.fromisoformat(lap_data.get("start_date").replace("Z", "+00:00")) if lap_data.get("start_date") else None,
+            "distance": lap_data.get("distance"),
+            "start_index": lap_data.get("start_index"),
+            "end_index": lap_data.get("end_index"),
+            "total_elevation_gain": lap_data.get("total_elevation_gain"),
+            "average_speed": lap_data.get("average_speed"),
+            "max_speed": lap_data.get("max_speed"),
+            "average_cadence": lap_data.get("average_cadence"),
+            "average_heartrate": lap_data.get("average_heartrate"),
+            "max_heartrate": lap_data.get("max_heartrate")
+        }
+        formatted_laps.append(lap_doc)
+    
+    return {"laps": formatted_laps}
+
 @app.get("/api/user/{user_id}/dashboard")
 async def get_dashboard_stats(user_id: str):
-    """Get dashboard statistics for user"""
+    """Get enhanced dashboard statistics for user"""
     
     # Verify user exists
     user = await db.users.find_one({"id": user_id})
@@ -328,13 +555,25 @@ async def get_dashboard_stats(user_id: str):
             this_week_activities=0,
             this_week_distance=0.0,
             avg_speed=0.0,
-            recent_activities=[]
+            recent_activities=[],
+            total_elevation=0.0,
+            avg_heartrate=0.0,
+            max_heartrate=0.0,
+            activities_by_sport={},
+            monthly_distance=[],
+            heartrate_zones={}
         )
     
-    # Calculate stats
+    # Calculate basic stats
     total_activities = len(activities)
     total_distance = sum(a.get("distance", 0) or 0 for a in activities)
     total_time = sum(a.get("moving_time", 0) or 0 for a in activities)
+    total_elevation = sum(a.get("total_elevation_gain", 0) or 0 for a in activities)
+    
+    # Heart rate stats
+    hr_activities = [a for a in activities if a.get("average_heartrate")]
+    avg_heartrate = sum(a.get("average_heartrate", 0) for a in hr_activities) / len(hr_activities) if hr_activities else 0
+    max_heartrate = max((a.get("max_heartrate", 0) for a in activities), default=0)
     
     # This week's activities
     week_start = datetime.now() - timedelta(days=7)
@@ -347,6 +586,35 @@ async def get_dashboard_stats(user_id: str):
     if total_time > 0:
         avg_speed = total_distance / total_time
     
+    # Activities by sport type
+    activities_by_sport = {}
+    for activity in activities:
+        sport = activity.get("sport_type", "Unknown")
+        activities_by_sport[sport] = activities_by_sport.get(sport, 0) + 1
+    
+    # Monthly distance for the last 12 months
+    monthly_distance = []
+    for i in range(12):
+        month_start = datetime.now().replace(day=1) - timedelta(days=i*30)
+        month_end = month_start + timedelta(days=30)
+        month_activities = [a for a in activities if month_start <= a.get("start_date", datetime.min) < month_end]
+        month_dist = sum(a.get("distance", 0) or 0 for a in month_activities) / 1000  # Convert to km
+        monthly_distance.append({
+            "month": month_start.strftime("%b %Y"),
+            "distance": round(month_dist, 1)
+        })
+    
+    monthly_distance.reverse()  # Chronological order
+    
+    # Heart rate zones (mock calculation - in real implementation, you'd use streams data)
+    heartrate_zones = {
+        "zone1": 25.0,  # Recovery
+        "zone2": 35.0,  # Aerobic Base
+        "zone3": 20.0,  # Aerobic
+        "zone4": 15.0,  # Threshold
+        "zone5": 5.0    # VO2 Max
+    }
+    
     # Recent activities (last 5)
     recent = sorted(activities, key=lambda x: x.get("start_date", datetime.min), reverse=True)[:5]
     recent_formatted = []
@@ -354,12 +622,16 @@ async def get_dashboard_stats(user_id: str):
     for activity in recent:
         recent_formatted.append({
             "id": activity.get("id"),
+            "strava_id": activity.get("strava_id"),
             "name": activity.get("name"),
             "sport_type": activity.get("sport_type"),
             "distance": format_distance(activity.get("distance")),
             "time": format_time(activity.get("moving_time")),
             "speed": format_speed(activity.get("average_speed")),
-            "date": activity.get("start_date").strftime("%Y-%m-%d") if activity.get("start_date") else "Unknown"
+            "elevation": f"{activity.get('total_elevation_gain', 0):.0f}m" if activity.get('total_elevation_gain') else "0m",
+            "heartrate": f"{activity.get('average_heartrate', 0):.0f} bpm" if activity.get('average_heartrate') else None,
+            "date": activity.get("start_date").strftime("%Y-%m-%d") if activity.get("start_date") else "Unknown",
+            "has_map": bool(activity.get("polyline_map") or activity.get("summary_polyline"))
         })
     
     return DashboardStats(
@@ -369,8 +641,76 @@ async def get_dashboard_stats(user_id: str):
         this_week_activities=this_week_count,
         this_week_distance=round(this_week_distance / 1000, 1),  # Convert to km
         avg_speed=round(avg_speed * 3.6, 1) if avg_speed > 0 else 0.0,  # Convert to km/h
-        recent_activities=recent_formatted
+        recent_activities=recent_formatted,
+        total_elevation=round(total_elevation, 1),
+        avg_heartrate=round(avg_heartrate, 1) if avg_heartrate > 0 else 0.0,
+        max_heartrate=max_heartrate,
+        activities_by_sport=activities_by_sport,
+        monthly_distance=monthly_distance,
+        heartrate_zones=heartrate_zones
     )
+
+@app.get("/api/user/{user_id}/activity/{strava_id}")
+async def get_activity_detail(user_id: str, strava_id: int):
+    """Get detailed information for a specific activity"""
+    
+    # Check if activity exists in our database
+    activity = await db.activities.find_one({"strava_id": strava_id, "user_id": user_id})
+    if not activity:
+        raise HTTPException(status_code=404, detail="Activity not found")
+    
+    # Get user's access token for fresh data
+    user = await db.users.find_one({"id": user_id})
+    if not user or not user.get("access_token"):
+        raise HTTPException(status_code=404, detail="User not found or not authenticated")
+    
+    # Fetch detailed activity data from Strava
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"https://www.strava.com/api/v3/activities/{strava_id}",
+            headers={"Authorization": f"Bearer {user['access_token']}"}
+        )
+    
+    if response.status_code == 401:
+        raise HTTPException(status_code=401, detail="Strava token expired")
+    elif response.status_code != 200:
+        # Return cached data if Strava API fails
+        return {"activity": activity}
+    
+    activity_data = response.json()
+    
+    # Decode polyline if available
+    route_coordinates = []
+    if activity_data.get("map", {}).get("polyline"):
+        route_coordinates = decode_polyline(activity_data["map"]["polyline"])
+    elif activity_data.get("map", {}).get("summary_polyline"):
+        route_coordinates = decode_polyline(activity_data["map"]["summary_polyline"])
+    
+    # Enhanced activity data
+    enhanced_activity = {
+        **activity,
+        "route_coordinates": route_coordinates,
+        "detailed_stats": {
+            "calories": activity_data.get("calories"),
+            "device_watts": activity_data.get("device_watts"),
+            "has_heartrate": activity_data.get("has_heartrate"),
+            "workout_type": activity_data.get("workout_type"),
+            "gear_id": activity_data.get("gear_id"),
+            "external_id": activity_data.get("external_id"),
+            "upload_id": activity_data.get("upload_id"),
+            "achievement_count": activity_data.get("achievement_count"),
+            "pr_count": activity_data.get("pr_count"),
+            "segment_efforts": len(activity_data.get("segment_efforts", [])),
+        },
+        "social_stats": {
+            "kudos_count": activity_data.get("kudos_count", 0),
+            "comment_count": activity_data.get("comment_count", 0),
+            "athlete_count": activity_data.get("athlete_count", 1),
+            "photo_count": activity_data.get("total_photo_count", 0)
+        }
+    }
+    
+    return {"activity": enhanced_activity}
 
 @app.delete("/api/user/{user_id}")
 async def delete_user(user_id: str):
