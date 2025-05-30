@@ -198,18 +198,42 @@ function App() {
     const userId = urlParams.get('user_id');
     const athleteId = urlParams.get('athlete_id');
     const athleteName = urlParams.get('athlete_name');
+    const code = urlParams.get('code');
+    const state = urlParams.get('state');
     
+    // Handle successful redirect from backend
     if (authSuccess === 'true' && userId) {
       handleStravaSuccess(userId, athleteId, athleteName);
-    } else {
-      // Legacy callback handling for direct OAuth codes
-      const code = urlParams.get('code');
-      const state = urlParams.get('state');
-      
-      if (code && state) {
-        handleStravaCallback(code, state);
-      }
     }
+    // Handle direct OAuth callback (legacy)
+    else if (code && state) {
+      handleStravaCallback(code, state);
+    }
+    // If there are auth-related parameters but they're invalid, clear them
+    else if (code || state || authSuccess) {
+      console.warn('Invalid auth parameters detected, clearing URL');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
+  // Handle browser navigation (back/forward buttons)
+  useEffect(() => {
+    const handlePopState = (event) => {
+      // Check if user is still logged in when navigating
+      const savedUser = localStorage.getItem('fittracker_user');
+      if (savedUser) {
+        const userData = JSON.parse(savedUser);
+        setUser(userData);
+        // Set appropriate view based on current path or default to dashboard
+        setCurrentView('dashboard');
+      } else {
+        // If no saved user, go to welcome page
+        setCurrentView('welcome');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   const handleStravaLogin = async () => {
