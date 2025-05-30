@@ -24,11 +24,21 @@ function App() {
   // Handle Strava OAuth callback
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    const state = urlParams.get('state');
+    const authSuccess = urlParams.get('auth_success');
+    const userId = urlParams.get('user_id');
+    const athleteId = urlParams.get('athlete_id');
+    const athleteName = urlParams.get('athlete_name');
     
-    if (code && state) {
-      handleStravaCallback(code, state);
+    if (authSuccess === 'true' && userId) {
+      handleStravaSuccess(userId, athleteId, athleteName);
+    } else {
+      // Legacy callback handling for direct OAuth codes
+      const code = urlParams.get('code');
+      const state = urlParams.get('state');
+      
+      if (code && state) {
+        handleStravaCallback(code, state);
+      }
     }
   }, []);
 
