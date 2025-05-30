@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Polyline, Marker, Popup } from 'react-leaflet';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { Line, Bar, Doughnut, Radar } from 'react-chartjs-2';
@@ -17,6 +17,113 @@ import './App.css';
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, ArcElement);
 
 const API_BASE_URL = process.env.REACT_APP_BACKEND_URL;
+
+// Custom Map Component to handle initialization issues
+const ActivityMap = ({ activity }) => {
+  const mapRef = useRef(null);
+  const mapContainerRef = useRef(null);
+
+  useEffect(() => {
+    // Cleanup any existing map
+    if (mapRef.current) {
+      mapRef.current.remove();
+      mapRef.current = null;
+    }
+
+    // Only create map if we have route coordinates
+    if (activity.route_coordinates && activity.route_coordinates.length > 0 && mapContainerRef.current) {
+      import('leaflet').then((L) => {
+        try {
+          // Create new map instance
+          const map = L.map(mapContainerRef.current, {
+            center: activity.route_coordinates[0],
+            zoom: 13,
+            scrollWheelZoom: true
+          });
+
+          // Add tile layer
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          }).addTo(map);
+
+          // Add route polyline
+          const getSportColor = (sportType) => {
+            const colors = {
+              'Run': '#10b981',
+              'Ride': '#3b82f6',
+              'Swim': '#06b6d4',
+              'Walk': '#8b5cf6',
+              'Hike': '#f59e0b',
+              'Workout': '#ef4444',
+              'VirtualRide': '#6366f1',
+              'EBikeRide': '#14b8a6',
+              'default': '#6b7280'
+            };
+            return colors[sportType] || colors.default;
+          };
+
+          L.polyline(activity.route_coordinates, {
+            color: getSportColor(activity.sport_type),
+            weight: 4,
+            opacity: 0.8
+          }).addTo(map);
+
+          // Add start marker
+          if (activity.start_latlng) {
+            L.marker(activity.start_latlng)
+              .addTo(map)
+              .bindPopup(`
+                <div style="text-align: center;">
+                  <div style="color: #10b981; font-weight: bold;">🚀 START</div>
+                  <div style="font-size: 12px;">${activity.name}</div>
+                </div>
+              `);
+          }
+
+          // Add finish marker
+          if (activity.end_latlng) {
+            L.marker(activity.end_latlng)
+              .addTo(map)
+              .bindPopup(`
+                <div style="text-align: center;">
+                  <div style="color: #ef4444; font-weight: bold;">🏁 FINISH</div>
+                  <div style="font-size: 12px;">
+                    ${activity.distance ? `${(activity.distance / 1000).toFixed(1)} km` : 'Unknown distance'}
+                  </div>
+                </div>
+              `);
+          }
+
+          // Fit map to route bounds
+          if (activity.route_coordinates.length > 1) {
+            const group = new L.featureGroup([L.polyline(activity.route_coordinates)]);
+            map.fitBounds(group.getBounds().pad(0.1));
+          }
+
+          mapRef.current = map;
+        } catch (error) {
+          console.error('Error creating map:', error);
+        }
+      });
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, [activity]);
+
+  return (
+    <div 
+      ref={mapContainerRef} 
+      style={{ height: '400px', width: '100%' }}
+      className="rounded-lg overflow-hidden"
+    />
+  );
+};
 
 // Animation variants
 const fadeInUp = {
