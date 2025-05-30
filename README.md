@@ -41,8 +41,8 @@ docker-compose up --build
 #### Frontend
 ```bash
 cd frontend
-npm install
-npm start
+yarn install
+yarn start
 ```
 
 #### Backend
@@ -186,7 +186,7 @@ docker-compose up --build
 ### Run all tests:
 ```bash
 # Frontend tests
-cd frontend && npm test
+cd frontend && yarn test
 
 # Backend tests
 python -m pytest backend_test.py -v
@@ -224,7 +224,7 @@ The GitHub Actions workflow automatically:
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature-name`
 3. Make your changes
-4. Run tests: `npm test` and `pytest`
+4. Run tests: `yarn test` and `pytest`
 5. Commit your changes: `git commit -am 'Add feature'`
 6. Push to the branch: `git push origin feature-name`
 7. Submit a pull request
