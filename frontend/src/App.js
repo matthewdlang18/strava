@@ -219,6 +219,38 @@ function App() {
               </div>
             </div>
           </div>
+
+          {/* Credits Footer */}
+          <div className="mt-16 text-center">
+            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10">
+              <p className="text-white/90 text-lg mb-4">
+                🏃‍♂️ Built with passion for the fitness community
+              </p>
+              <div className="flex justify-center items-center space-x-6 text-white/70 text-sm">
+                <div className="flex items-center">
+                  <span className="mr-2">⚡</span>
+                  React & FastAPI
+                </div>
+                <div className="flex items-center">
+                  <span className="mr-2">🔗</span>
+                  Strava Integration
+                </div>
+                <div className="flex items-center">
+                  <span className="mr-2">🎨</span>
+                  Tailwind CSS
+                </div>
+                <div className="flex items-center">
+                  <span className="mr-2">🚀</span>
+                  AI-Powered Development
+                </div>
+              </div>
+              <div className="mt-4 pt-4 border-t border-white/10">
+                <p className="text-white/60 text-xs">
+                  Created with EmergentAgent AI • Open Source Alternative to Premium Fitness Apps
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
