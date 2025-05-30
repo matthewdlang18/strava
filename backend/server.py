@@ -1196,73 +1196,59 @@ async def get_activity_laps(user_id: str, activity_id: int):
 async def get_activity_detail(user_id: str, strava_id: int):
     """Get detailed information for a specific activity"""
     
-    # Check if activity exists in our database
-    activity = await db.activities.find_one({"strava_id": strava_id, "user_id": user_id})
-    if not activity:
-        raise HTTPException(status_code=404, detail="Activity not found")
-    
-    # Get user's access token for fresh data
-    user = await db.users.find_one({"id": user_id})
-    if not user or not user.get("access_token"):
-        raise HTTPException(status_code=404, detail="User not found or not authenticated")
-    
-    # Fetch detailed activity data from Strava
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"https://www.strava.com/api/v3/activities/{strava_id}",
-            headers={"Authorization": f"Bearer {user['access_token']}"}
-        )
-    
-    if response.status_code == 401:
-        raise HTTPException(status_code=401, detail="Strava token expired")
-    elif response.status_code != 200:
-        # Return cached data if Strava API fails
-        return {"activity": activity}
-    
-    activity_data = response.json()
-    
-    # Decode polyline if available
-    route_coordinates = []
-    if activity_data.get("map", {}).get("polyline"):
-        route_coordinates = decode_polyline(activity_data["map"]["polyline"])
-    elif activity_data.get("map", {}).get("summary_polyline"):
-        route_coordinates = decode_polyline(activity_data["map"]["summary_polyline"])
-    
-    # Enhanced activity data
-    enhanced_activity = {
-        **activity,
-        "route_coordinates": route_coordinates,
-        "detailed_stats": {
-            "calories": activity_data.get("calories"),
-            "device_watts": activity_data.get("device_watts"),
-            "has_heartrate": activity_data.get("has_heartrate"),
-            "workout_type": activity_data.get("workout_type"),
-            "gear_id": activity_data.get("gear_id"),
-            "external_id": activity_data.get("external_id"),
-            "upload_id": activity_data.get("upload_id"),
-            "achievement_count": activity_data.get("achievement_count"),
-            "pr_count": activity_data.get("pr_count"),
-            "segment_efforts": len(activity_data.get("segment_efforts", [])),
-        },
-        "social_stats": {
-            "kudos_count": activity_data.get("kudos_count", 0),
-            "comment_count": activity_data.get("comment_count", 0),
-            "athlete_count": activity_data.get("athlete_count", 1),
-            "photo_count": activity_data.get("total_photo_count", 0)
+    try:
+        # Check if activity exists in our database
+        activity = await db.activities.find_one({"strava_id": strava_id, "user_id": user_id})
+        if not activity:
+            raise HTTPException(status_code=404, detail="Activity not found")
+        
+        # Clean activity data for JSON serialization
+        clean_activity = {}
+        for key, value in activity.items():
+            if isinstance(value, ObjectId):
+                clean_activity[key] = str(value)
+            elif isinstance(value, datetime):
+                clean_activity[key] = value.isoformat()
+            else:
+                clean_activity[key] = value
+        
+        # Decode polyline if available for route coordinates
+        route_coordinates = []
+        if clean_activity.get("polyline_map"):
+            try:
+                route_coordinates = decode_polyline(clean_activity["polyline_map"])
+            except:
+                pass
+        elif clean_activity.get("summary_polyline"):
+            try:
+                route_coordinates = decode_polyline(clean_activity["summary_polyline"])
+            except:
+                pass
+        
+        # Add route coordinates
+        clean_activity["route_coordinates"] = route_coordinates
+        
+        # Add enhanced stats
+        clean_activity["detailed_stats"] = {
+            "calories": clean_activity.get("calories"),
+            "device_watts": clean_activity.get("device_watts"),
+            "has_heartrate": clean_activity.get("has_heartrate"),
+            "segment_efforts": 0,  # Simplified for now
         }
-    }
-    
-    # Clean enhanced activity for JSON serialization
-    clean_enhanced_activity = {}
-    for key, value in enhanced_activity.items():
-        if isinstance(value, ObjectId):
-            clean_enhanced_activity[key] = str(value)
-        elif isinstance(value, datetime):
-            clean_enhanced_activity[key] = value.isoformat()
-        else:
-            clean_enhanced_activity[key] = value
-    
-    return {"activity": clean_enhanced_activity}
+        
+        clean_activity["social_stats"] = {
+            "kudos_count": clean_activity.get("kudos_count", 0),
+            "comment_count": clean_activity.get("comment_count", 0),
+            "photo_count": clean_activity.get("photo_count", 0)
+        }
+        
+        return {"activity": clean_activity}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in activity detail: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.get("/api/user/{user_id}/personal-records")
 async def get_personal_records(user_id: str):
