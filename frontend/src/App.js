@@ -150,19 +150,86 @@ function App() {
   const [activityLaps, setActivityLaps] = useState(null);
   const [personalRecords, setPersonalRecords] = useState([]);
   const [achievements, setAchievements] = useState([]);
-  const [currentView, setCurrentView] = useState('welcome'); // welcome, dashboard, activities, activity-detail, records, achievements
+  const [currentView, setCurrentView] = useState('welcome'); 
   const [exportLoading, setExportLoading] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  // Check if user is already logged in (from localStorage)
+  // Initialize app state
   useEffect(() => {
     const savedUser = localStorage.getItem('fittracker_user');
     if (savedUser) {
-      const userData = JSON.parse(savedUser);
-      setUser(userData);
-      setCurrentView('dashboard');
-      loadDashboardData(userData.user_id);
+      try {
+        const userData = JSON.parse(savedUser);
+        setUser(userData);
+        setCurrentView('dashboard');
+        loadDashboardData(userData.user_id);
+      } catch (error) {
+        console.error('Error parsing saved user:', error);
+        localStorage.removeItem('fittracker_user');
+      }
     }
+    setIsInitialized(true);
   }, []);
+
+  // Handle URL parameters only on initial load
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const authSuccess = urlParams.get('auth_success');
+    const authError = urlParams.get('auth_error');
+    const userId = urlParams.get('user_id');
+    const athleteId = urlParams.get('athlete_id');
+    const athleteName = urlParams.get('athlete_name');
+    const code = urlParams.get('code');
+    const state = urlParams.get('state');
+    
+    // Only process auth parameters if we don't already have a user
+    if (!user) {
+      // Handle authentication errors
+      if (authError) {
+        console.error('Authentication error:', authError);
+        let errorMessage = 'Authentication failed. Please try again.';
+        
+        switch (authError) {
+          case 'invalid_state':
+            errorMessage = 'Session expired. Please try logging in again.';
+            break;
+          case 'token_exchange_failed':
+            errorMessage = 'Failed to connect to Strava. Please try again.';
+            break;
+          case 'callback_error':
+            errorMessage = 'Authentication error occurred. Please try again.';
+            break;
+        }
+        
+        alert(errorMessage);
+        window.history.replaceState({}, document.title, window.location.pathname);
+        return;
+      }
+      
+      // Handle successful redirect from backend
+      if (authSuccess === 'true' && userId) {
+        handleStravaSuccess(userId, athleteId, athleteName);
+      }
+      // Handle direct OAuth callback (legacy)
+      else if (code && state) {
+        handleStravaCallback(code, state);
+      }
+    }
+    
+    // Always clean up URL parameters after processing
+    if (authSuccess || authError || code || state) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [isInitialized, user]);
+
+  // Improved navigation handling
+  const navigateToView = (viewName) => {
+    setCurrentView(viewName);
+    // Update URL without triggering auth flow
+    window.history.pushState({ view: viewName }, document.title, window.location.pathname);
+  };
 
   const handleStravaSuccess = async (userId, athleteId, athleteName) => {
     try {
