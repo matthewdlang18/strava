@@ -204,11 +204,243 @@ class TestFitTrackerAPI(unittest.TestCase):
     def test_delete_user_not_found(self):
         self.assertTrue(self.tester.test_delete_user_not_found())
 
+def test_premium_features():
+    """Test the premium features of the API"""
+    print("\n=== Testing Premium Features ===")
+    
+    # We need a valid user ID to test premium features
+    # For testing purposes, we'll use a hardcoded user ID that might exist in the database
+    # In a real test environment, we would create a test user with valid Strava tokens
+    
+    test_user_ids = [
+        "550e8400-e29b-41d4-a716-446655440000",
+        "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+        "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+        "123e4567-e89b-12d3-a456-426614174000"
+    ]
+    
+    tester = FitTrackerAPITester()
+    found_user = False
+    
+    # Try to find a valid user
+    for user_id in test_user_ids:
+        success, response = tester.run_test(
+            f"Find Valid User (ID: {user_id})",
+            "GET",
+            f"api/user/{user_id}",
+            200
+        )
+        
+        if success:
+            found_user = True
+            valid_user_id = user_id
+            print(f"✅ Found valid user with ID: {valid_user_id}")
+            break
+    
+    if not found_user:
+        print("❌ Could not find a valid user to test premium features")
+        return False
+    
+    # Test dashboard with enhanced stats
+    dashboard_success, dashboard_data = tester.run_test(
+        "Dashboard with Enhanced Stats",
+        "GET",
+        f"api/user/{valid_user_id}/dashboard",
+        200
+    )
+    
+    if dashboard_success:
+        # Check for premium dashboard features
+        premium_features_present = True
+        
+        # Check for monthly distance chart data
+        if 'monthly_distance' not in dashboard_data:
+            print("❌ Monthly distance chart data not found")
+            premium_features_present = False
+        else:
+            print(f"✅ Monthly distance chart data found with {len(dashboard_data['monthly_distance'])} months")
+        
+        # Check for activities by sport breakdown
+        if 'activities_by_sport' not in dashboard_data:
+            print("❌ Activities by sport breakdown not found")
+            premium_features_present = False
+        else:
+            print(f"✅ Activities by sport breakdown found with {len(dashboard_data['activities_by_sport'])} sports")
+        
+        # Check for heart rate zones
+        if 'heartrate_zones' not in dashboard_data:
+            print("❌ Heart rate zones analysis not found")
+            premium_features_present = False
+        else:
+            print(f"✅ Heart rate zones analysis found with {len(dashboard_data['heartrate_zones'])} zones")
+        
+        # Check for enhanced stats grid
+        enhanced_stats = ['total_elevation', 'avg_heartrate', 'max_heartrate']
+        missing_stats = [stat for stat in enhanced_stats if stat not in dashboard_data]
+        
+        if missing_stats:
+            print(f"❌ Enhanced stats missing: {', '.join(missing_stats)}")
+            premium_features_present = False
+        else:
+            print("✅ Enhanced stats grid complete")
+        
+        if not premium_features_present:
+            print("❌ Some premium dashboard features are missing")
+            dashboard_success = False
+    
+    # Test activities endpoint for enhanced activity cards
+    activities_success, activities_data = tester.run_test(
+        "Activities with Enhanced Data",
+        "GET",
+        f"api/user/{valid_user_id}/activities?detailed=true",
+        200
+    )
+    
+    activity_id = None
+    
+    if activities_success:
+        if 'activities' not in activities_data or not activities_data['activities']:
+            print("❌ No activities found for this user")
+            activities_success = False
+        else:
+            # Check the first activity for enhanced fields
+            activity = activities_data['activities'][0]
+            activity_id = activity.get('strava_id')
+            
+            # Check for enhanced activity features
+            enhanced_fields = [
+                'polyline_map', 'summary_polyline', 'start_latlng', 'end_latlng',
+                'average_heartrate', 'max_heartrate', 'average_watts', 'calories'
+            ]
+            
+            missing_fields = [field for field in enhanced_fields if field not in activity or activity[field] is None]
+            
+            if missing_fields:
+                print(f"❌ Enhanced activity fields missing: {', '.join(missing_fields)}")
+                print("⚠️ Some fields may be legitimately null depending on the activity type")
+            else:
+                print("✅ Enhanced activity fields present")
+    
+    # Test activity detail endpoint for interactive maps & routes
+    if activity_id:
+        detail_success, detail_data = tester.run_test(
+            "Activity Detail with Route Map",
+            "GET",
+            f"api/user/{valid_user_id}/activity/{activity_id}",
+            200
+        )
+        
+        if detail_success:
+            if 'activity' not in detail_data:
+                print("❌ Activity detail not found")
+                detail_success = False
+            else:
+                activity = detail_data['activity']
+                
+                # Check for route coordinates (for map)
+                if 'route_coordinates' not in activity:
+                    print("❌ Route coordinates for map not found")
+                    detail_success = False
+                else:
+                    print(f"✅ Route coordinates found with {len(activity['route_coordinates'])} points")
+                
+                # Check for detailed stats and social stats
+                if 'detailed_stats' not in activity:
+                    print("❌ Detailed stats not found")
+                    detail_success = False
+                else:
+                    print("✅ Detailed stats present")
+                
+                if 'social_stats' not in activity:
+                    print("❌ Social stats not found")
+                    detail_success = False
+                else:
+                    print("✅ Social stats present")
+    else:
+        print("⚠️ Skipping activity detail test - no activity ID available")
+        detail_success = True  # Don't fail the overall test
+    
+    # Test activity streams endpoint for detailed activity analysis
+    if activity_id:
+        streams_success, streams_data = tester.run_test(
+            "Activity Streams for Detailed Analysis",
+            "GET",
+            f"api/user/{valid_user_id}/activity/{activity_id}/streams",
+            200
+        )
+        
+        if streams_success:
+            if 'streams' not in streams_data:
+                print("❌ Activity streams not found")
+                streams_success = False
+            else:
+                streams = streams_data['streams']
+                
+                # Check for various stream types
+                important_streams = ['time', 'distance', 'altitude', 'heartrate', 'velocity_smooth']
+                available_streams = [stream for stream in important_streams if stream in streams]
+                
+                if not available_streams:
+                    print("❌ No important streams found")
+                    streams_success = False
+                else:
+                    print(f"✅ Found {len(available_streams)} important streams: {', '.join(available_streams)}")
+    else:
+        print("⚠️ Skipping activity streams test - no activity ID available")
+        streams_success = True  # Don't fail the overall test
+    
+    # Test activity laps endpoint for lap-by-lap analysis
+    if activity_id:
+        laps_success, laps_data = tester.run_test(
+            "Activity Laps for Split Analysis",
+            "GET",
+            f"api/user/{valid_user_id}/activity/{activity_id}/laps",
+            200
+        )
+        
+        if laps_success:
+            if 'laps' not in laps_data:
+                print("❌ Activity laps not found")
+                laps_success = False
+            else:
+                laps = laps_data['laps']
+                
+                if not laps:
+                    print("⚠️ No laps found for this activity (this may be normal)")
+                else:
+                    # Check the first lap for detailed metrics
+                    lap = laps[0]
+                    lap_fields = [
+                        'elapsed_time', 'moving_time', 'distance', 'average_speed',
+                        'average_heartrate', 'max_heartrate', 'total_elevation_gain'
+                    ]
+                    
+                    missing_fields = [field for field in lap_fields if field not in lap or lap[field] is None]
+                    
+                    if missing_fields:
+                        print(f"❌ Lap analysis fields missing: {', '.join(missing_fields)}")
+                        print("⚠️ Some fields may be legitimately null depending on the activity type")
+                    else:
+                        print(f"✅ Lap analysis complete with {len(laps)} laps")
+    else:
+        print("⚠️ Skipping activity laps test - no activity ID available")
+        laps_success = True  # Don't fail the overall test
+    
+    # Overall premium features success
+    premium_features_success = dashboard_success and activities_success and detail_success and streams_success and laps_success
+    
+    if premium_features_success:
+        print("\n✅ All premium features are working correctly!")
+    else:
+        print("\n❌ Some premium features are not working correctly.")
+    
+    return premium_features_success
+
 def main():
     # Setup
     tester = FitTrackerAPITester()
     
-    # Run tests
+    # Run basic tests
     root_success = tester.test_root_endpoint()
     health_success = tester.test_health_endpoint()
     strava_auth_success = tester.test_strava_auth_initiation()
@@ -226,8 +458,12 @@ def main():
     dashboard_not_found_success = tester.test_user_dashboard_not_found()
     delete_user_not_found_success = tester.test_delete_user_not_found()
     
+    # Test premium features
+    premium_features_success = test_premium_features()
+    
     # Print results
-    print(f"\n📊 Tests passed: {tester.tests_passed}/{tester.tests_run}")
+    print(f"\n📊 Basic tests passed: {tester.tests_passed}/{tester.tests_run}")
+    print(f"📊 Premium features: {'✅ Working' if premium_features_success else '❌ Not fully working'}")
     
     # Return success only if all tests passed
     all_tests_passed = (
@@ -238,7 +474,8 @@ def main():
         user_not_found_success and
         activities_not_found_success and
         dashboard_not_found_success and
-        delete_user_not_found_success
+        delete_user_not_found_success and
+        premium_features_success
     )
     
     return 0 if all_tests_passed else 1
