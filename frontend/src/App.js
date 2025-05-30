@@ -770,8 +770,7 @@ function App() {
                         data: dashboardData.monthly_distance.map(d => d.distance),
                         borderColor: '#f97316',
                         backgroundColor: 'rgba(249, 115, 22, 0.1)',
-                        tension: 0.3,
-                        fill: true
+                        tension: 0.3
                       }]
                     }}
                     options={{
