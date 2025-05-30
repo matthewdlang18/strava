@@ -21,6 +21,33 @@ function App() {
     }
   }, []);
 
+  const handleStravaSuccess = async (userId, athleteId, athleteName) => {
+    try {
+      setIsLoading(true);
+      const userData = {
+        user_id: userId,
+        athlete: {
+          id: athleteId,
+          name: athleteName
+        }
+      };
+      setUser(userData);
+      localStorage.setItem('fittracker_user', JSON.stringify(userData));
+      setCurrentView('dashboard');
+      
+      // Clear URL parameters
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      // Load dashboard data
+      await loadDashboardData(userId);
+    } catch (error) {
+      console.error('Failed to complete Strava authentication:', error);
+      alert('Failed to authenticate with Strava. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Handle Strava OAuth callback
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
