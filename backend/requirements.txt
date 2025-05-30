@@ -9,3 +9,5 @@ email-validator==2.1.0
 stravalib==0.10.4
 httpx==0.25.2
 python-jose[cryptography]==3.3.0
+geopy==2.4.1
+polyline==2.0.0
