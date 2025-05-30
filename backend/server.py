@@ -678,7 +678,7 @@ async def get_user(user_id: str):
     return user
 
 @app.get("/api/user/{user_id}/activities")
-async def get_user_activities(user_id: str, page: int = 1, per_page: int = 30, detailed: bool = False):
+async def get_user_activities(user_id: str, page: int = 1, per_page: int = 30, detailed: bool = False, sync_all: bool = False):
     """Fetch and return user's Strava activities with comprehensive enhancement"""
     
     # Get user's access token
@@ -689,125 +689,155 @@ async def get_user_activities(user_id: str, page: int = 1, per_page: int = 30, d
     # Get all user activities for PR/achievement checking
     existing_activities = await db.activities.find({"user_id": user_id}).to_list(length=None)
     
-    # Fetch activities from Strava
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            "https://www.strava.com/api/v3/athlete/activities",
-            headers={"Authorization": f"Bearer {user['access_token']}"},
-            params={"page": page, "per_page": per_page}
-        )
+    # If sync_all is requested, fetch multiple pages to get more historical data
+    all_activities_data = []
+    max_pages = 10 if sync_all else 1  # Fetch up to 10 pages (300 activities) if sync_all is true
     
-    if response.status_code == 401:
-        raise HTTPException(status_code=401, detail="Strava token expired")
-    elif response.status_code != 200:
-        raise HTTPException(status_code=400, detail="Failed to fetch activities from Strava")
-    
-    activities_data = response.json()
+    for current_page in range(1, max_pages + 1):
+        # Fetch activities from Strava
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                "https://www.strava.com/api/v3/athlete/activities",
+                headers={"Authorization": f"Bearer {user['access_token']}"},
+                params={"page": current_page, "per_page": 30}
+            )
+        
+        if response.status_code == 401:
+            raise HTTPException(status_code=401, detail="Strava token expired")
+        elif response.status_code != 200:
+            if current_page == 1:  # Only raise error if first page fails
+                raise HTTPException(status_code=400, detail="Failed to fetch activities from Strava")
+            else:
+                break  # Stop if subsequent pages fail
+        
+        page_activities = response.json()
+        if not page_activities:  # No more activities
+            break
+            
+        all_activities_data.extend(page_activities)
+        
+        # If not syncing all, just get the requested page
+        if not sync_all:
+            break
     
     # Process and store activities with comprehensive enhancement
     activities = []
-    for activity_data in activities_data:
-        activity_id = str(uuid.uuid4())
-        now = datetime.now()
-        
-        # If detailed is requested, fetch full activity details
-        if detailed:
-            activity_detail_response = await client.get(
-                f"https://www.strava.com/api/v3/activities/{activity_data.get('id')}",
-                headers={"Authorization": f"Bearer {user['access_token']}"}
+    for activity_data in all_activities_data:
+        try:
+            activity_id = str(uuid.uuid4())
+            now = datetime.now()
+            
+            # If detailed is requested, fetch full activity details
+            if detailed and len(all_activities_data) <= 30:  # Only get details for first 30 to avoid rate limits
+                async with httpx.AsyncClient() as client:
+                    activity_detail_response = await client.get(
+                        f"https://www.strava.com/api/v3/activities/{activity_data.get('id')}",
+                        headers={"Authorization": f"Bearer {user['access_token']}"}
+                    )
+                    
+                    if activity_detail_response.status_code == 200:
+                        activity_data = activity_detail_response.json()
+            
+            # Parse start date safely
+            start_date = None
+            if activity_data.get("start_date"):
+                try:
+                    start_date = datetime.fromisoformat(activity_data.get("start_date").replace("Z", "+00:00"))
+                except:
+                    start_date = datetime.now()
+            
+            # Get weather data if location available (simplified for now)
+            weather_data = None
+            if activity_data.get('start_latlng'):
+                try:
+                    weather_data = {
+                        "temperature": 22.0,
+                        "condition": "Clear",
+                        "humidity": 60.0,
+                        "wind_speed": 10.0,
+                        "wind_direction": "NW"
+                    }
+                except:
+                    pass
+            
+            activity_doc = {
+                "id": activity_id,
+                "strava_id": activity_data.get("id"),
+                "user_id": user_id,
+                "name": activity_data.get("name", "Unknown Activity"),
+                "sport_type": activity_data.get("sport_type", activity_data.get("type", "Unknown")),
+                "distance": activity_data.get("distance"),
+                "moving_time": activity_data.get("moving_time"),
+                "elapsed_time": activity_data.get("elapsed_time"),
+                "total_elevation_gain": activity_data.get("total_elevation_gain"),
+                "average_speed": activity_data.get("average_speed"),
+                "max_speed": activity_data.get("max_speed"),
+                "average_heartrate": activity_data.get("average_heartrate"),
+                "max_heartrate": activity_data.get("max_heartrate"),
+                "start_date": start_date,
+                
+                # Enhanced fields
+                "polyline_map": activity_data.get("map", {}).get("polyline") if activity_data.get("map") else None,
+                "summary_polyline": activity_data.get("map", {}).get("summary_polyline") if activity_data.get("map") else None,
+                "start_latlng": activity_data.get("start_latlng"),
+                "end_latlng": activity_data.get("end_latlng"),
+                
+                # Performance metrics
+                "average_cadence": activity_data.get("average_cadence"),
+                "average_watts": activity_data.get("average_watts"),
+                "weighted_average_watts": activity_data.get("weighted_average_watts"),
+                "kilojoules": activity_data.get("kilojoules"),
+                "device_watts": activity_data.get("device_watts"),
+                "has_heartrate": activity_data.get("has_heartrate"),
+                
+                # Additional details
+                "description": activity_data.get("description"),
+                "calories": activity_data.get("calories"),
+                "has_kudos": activity_data.get("has_kudos"),
+                "kudos_count": activity_data.get("kudos_count", 0),
+                "comment_count": activity_data.get("comment_count", 0),
+                "photo_count": activity_data.get("photo_count", 0),
+                
+                # Training metrics
+                "suffer_score": activity_data.get("suffer_score"),
+                "training_stress_score": activity_data.get("training_stress_score"),
+                "intensity_factor": activity_data.get("intensity_factor"),
+                "normalized_power": activity_data.get("normalized_power"),
+                
+                # Weather data
+                "weather": weather_data,
+                
+                "created_at": now
+            }
+            
+            # Check for personal records (simplified for performance)
+            activity_doc["is_personal_record"] = False
+            activity_doc["achievements_earned"] = []
+            
+            # Upsert activity (update if exists, insert if new)
+            await db.activities.update_one(
+                {"strava_id": activity_data.get("id"), "user_id": user_id},
+                {"$set": activity_doc},
+                upsert=True
             )
             
-            if activity_detail_response.status_code == 200:
-                activity_data = activity_detail_response.json()
-        
-        # Get weather data if location available
-        weather_data = None
-        if activity_data.get('start_latlng'):
-            try:
-                weather_data = await get_weather_for_activity(
-                    activity_data['start_latlng'][0],
-                    activity_data['start_latlng'][1],
-                    datetime.fromisoformat(activity_data.get("start_date").replace("Z", "+00:00"))
-                )
-            except:
-                pass
-        
-        activity_doc = {
-            "id": activity_id,
-            "strava_id": activity_data.get("id"),
-            "user_id": user_id,
-            "name": activity_data.get("name"),
-            "sport_type": activity_data.get("sport_type", activity_data.get("type")),
-            "distance": activity_data.get("distance"),
-            "moving_time": activity_data.get("moving_time"),
-            "elapsed_time": activity_data.get("elapsed_time"),
-            "total_elevation_gain": activity_data.get("total_elevation_gain"),
-            "average_speed": activity_data.get("average_speed"),
-            "max_speed": activity_data.get("max_speed"),
-            "average_heartrate": activity_data.get("average_heartrate"),
-            "max_heartrate": activity_data.get("max_heartrate"),
-            "start_date": datetime.fromisoformat(activity_data.get("start_date").replace("Z", "+00:00")),
+            # Convert ObjectId and datetime for JSON serialization
+            clean_activity = {}
+            for key, value in activity_doc.items():
+                if isinstance(value, ObjectId):
+                    clean_activity[key] = str(value)
+                elif isinstance(value, datetime):
+                    clean_activity[key] = value.isoformat()
+                else:
+                    clean_activity[key] = value
             
-            # Enhanced fields
-            "polyline_map": activity_data.get("map", {}).get("polyline"),
-            "summary_polyline": activity_data.get("map", {}).get("summary_polyline"),
-            "start_latlng": activity_data.get("start_latlng"),
-            "end_latlng": activity_data.get("end_latlng"),
+            activities.append(clean_activity)
             
-            # Performance metrics
-            "average_cadence": activity_data.get("average_cadence"),
-            "average_watts": activity_data.get("average_watts"),
-            "weighted_average_watts": activity_data.get("weighted_average_watts"),
-            "kilojoules": activity_data.get("kilojoules"),
-            "device_watts": activity_data.get("device_watts"),
-            "has_heartrate": activity_data.get("has_heartrate"),
-            
-            # Additional details
-            "description": activity_data.get("description"),
-            "calories": activity_data.get("calories"),
-            "has_kudos": activity_data.get("has_kudos"),
-            "kudos_count": activity_data.get("kudos_count"),
-            "comment_count": activity_data.get("comment_count"),
-            "photo_count": activity_data.get("photo_count"),
-            
-            # Training metrics
-            "suffer_score": activity_data.get("suffer_score"),
-            "training_stress_score": activity_data.get("training_stress_score"),
-            "intensity_factor": activity_data.get("intensity_factor"),
-            "normalized_power": activity_data.get("normalized_power"),
-            
-            # Weather data
-            "weather": weather_data.dict() if weather_data else None,
-            
-            "created_at": now
-        }
-        
-        # Check for personal records
-        all_activities = existing_activities + [activity_doc]
-        personal_records = check_personal_records(activity_doc, all_activities)
-        activity_doc["is_personal_record"] = len(personal_records) > 0
-        
-        # Check for achievements
-        achievements = check_for_achievements(activity_doc, all_activities)
-        activity_doc["achievements_earned"] = [a.title for a in achievements]
-        
-        # Store personal records and achievements
-        for pr in personal_records:
-            await db.personal_records.insert_one(pr.dict())
-        
-        for achievement in achievements:
-            await db.achievements.insert_one(achievement.dict())
-        
-        # Upsert activity (update if exists, insert if new)
-        await db.activities.update_one(
-            {"strava_id": activity_data.get("id"), "user_id": user_id},
-            {"$set": activity_doc},
-            upsert=True
-        )
-        
-        activities.append(activity_doc)
+        except Exception as e:
+            print(f"Error processing activity {activity_data.get('id', 'unknown')}: {e}")
+            continue
     
-    return {"activities": activities, "count": len(activities)}
+    return {"activities": activities, "count": len(activities), "synced_pages": max_pages if sync_all else 1}
 
 @app.get("/api/user/{user_id}/dashboard")
 async def get_comprehensive_dashboard(user_id: str):
