@@ -13,6 +13,20 @@ A full-stack web application that integrates with Strava API, featuring a React 
 
 ## 🚀 Quick Start
 
+### 🎯 Ready to Deploy?
+
+**NEW!** Complete deployment infrastructure is ready! Choose your path:
+
+- **🏃‍♂️ Quick Deployment (30 min)**: Follow [`QUICK_START.md`](QUICK_START.md)
+- **📚 Detailed Setup**: See [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md) 
+- **🔧 Local Development**: Run `./setup.sh` for automated setup
+- **📋 Status & Progress**: Check [`DEPLOYMENT_STATUS.md`](DEPLOYMENT_STATUS.md)
+
+### Deployment Platforms Supported
+- ✅ **Render** (Recommended) - Free tier, excellent Docker support
+- ✅ **Railway** - Developer-friendly, auto-scaling
+- ✅ **Heroku** - Enterprise-ready platform
+
 ### Local Development
 
 1. Clone the repository:
