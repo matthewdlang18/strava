@@ -48,6 +48,9 @@ jobs:
         REACT_APP_API_URL: https://matthewdlang18.github.io/strava/api
         REACT_APP_STRAVA_CLIENT_ID: demo_mode
         REACT_APP_STORAGE_MODE: local
+        REACT_APP_DEMO_MODE: true
+        GENERATE_SOURCEMAP: false
+        CI: false
       run: |
         if command -v yarn &> /dev/null && [ -f yarn.lock ]; then
           yarn build

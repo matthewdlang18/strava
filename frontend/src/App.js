@@ -13,6 +13,7 @@ import { format, formatDistanceToNow } from 'date-fns';
 import 'leaflet/dist/leaflet.css';
 import './App.css';
 import localStorageAPI from './api/localStorage';
+import { initializeDemoData } from './utils/demoData';
 
 // Register Chart.js components
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, ArcElement);
@@ -161,12 +162,26 @@ function App() {
   useEffect(() => {
     const initializeApp = async () => {
       if (DEMO_MODE) {
-        // For GitHub Pages demo mode, check if we have demo data
-        const existingData = localStorageAPI.getData();
-        if (!existingData.user || existingData.activities.length === 0) {
-          // Populate with demo data
-          const demoData = localStorageAPI.populateDemoData();
-          setUser(demoData.user);
+        // Initialize comprehensive demo data for GitHub Pages
+        initializeDemoData();
+        
+        // Load the demo data
+        const demoData = localStorageAPI.getData();
+        setUser(demoData.user);
+        setActivities(demoData.activities || []);
+        setAchievements(demoData.achievements || []);
+        setPersonalRecords(demoData.user?.personal_records || []);
+        
+        // Set demo dashboard data
+        setDashboardData({
+          total_activities: demoData.stats?.allTime?.activities || demoData.activities?.length || 0,
+          total_distance: demoData.stats?.allTime?.distance || 0,
+          total_time: demoData.stats?.allTime?.time || 0,
+          recent_activities: demoData.activities?.slice(0, 5) || []
+        });
+        
+        console.log('✅ GitHub Pages demo mode initialized with comprehensive data');
+      } else {
           setActivities(demoData.activities);
           setCurrentView('dashboard');
         } else {

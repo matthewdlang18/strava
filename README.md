@@ -18,9 +18,22 @@ A modern fitness tracking application built with React, deployed as a static sit
 
 **GitHub Pages Deployment (5 minutes)**:
 
-1. **🚀 Quick Deploy**: Run `./deploy.sh` to push code and get setup instructions
-2. **⚙️ Enable Pages**: Go to repository settings and enable GitHub Pages with "GitHub Actions" source  
-3. **🎉 Live in 2-3 minutes**: Your app will be live at `https://matthewdlang18.github.io/strava`
+🚀 **Three Ways to Deploy:**
+
+1. **Quick Deploy** (easiest): `./deploy.sh` → choose option 1
+2. **Build & Test**: `./deploy.sh` → choose option 2  
+3. **Preview First**: `./deploy.sh` → choose option 3
+
+**Then Enable GitHub Pages:**
+- 🌐 Go to: [Repository Settings](https://github.com/matthewdlang18/strava/settings/pages)
+- ⚙️ Source: Select "GitHub Actions"  
+- 💾 Click "Save"
+- 🎉 Live in 2-3 minutes at: `https://matthewdlang18.github.io/strava`
+
+**Alternative Scripts:**
+- `./quick-deploy.sh` - Fast push without local testing
+- `./build-and-deploy.sh` - Full build validation + deploy
+- `./preview-local.sh` - Test locally before deploying
 
 **Documentation**:
 - **🎯 GitHub Pages Setup**: [`SETUP_GITHUB_PAGES.md`](SETUP_GITHUB_PAGES.md)
