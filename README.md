@@ -134,9 +134,11 @@ The GitHub Actions workflow automatically builds and pushes Docker images to Git
 
 ### GitHub Actions Issues
 
-**npm cache path resolution errors**: Fixed by updating workflows to use Yarn instead of npm, since the frontend uses `yarn.lock`.
+**npm cache path resolution errors**: ✅ **RESOLVED** - Updated workflows to use Yarn instead of npm, since the frontend uses `yarn.lock`.
 
-**Workflow conditional deployments**: The workflows now use `continue-on-error: true` to gracefully handle missing deployment secrets without failing the entire workflow.
+**Workflow conditional deployments**: ✅ **RESOLVED** - The workflows now use `continue-on-error: true` to gracefully handle missing deployment secrets without failing the entire workflow.
+
+**Testing dependency issues**: ✅ **RESOLVED** - All required testing dependencies (`@testing-library/react`, `@testing-library/jest-dom`, `@testing-library/user-event`) are now properly installed and tests pass successfully.
 
 ### Local Development Issues
 
