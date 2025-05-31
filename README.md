@@ -1,45 +1,51 @@
-# Strava Application
+# Strava Fitness Tracker
 
-A full-stack web application that integrates with Strava API, featuring a React frontend and FastAPI backend.
+A modern fitness tracking application built with React, deployed as a static site on GitHub Pages with demo mode featuring sample fitness data.
 
 ## 🏗️ Architecture
 
 - **Frontend**: React.js with modern UI components
-- **Backend**: FastAPI (Python)
-- **Database**: MongoDB (via Motor async driver)
-- **Containerization**: Docker multi-stage build
-- **Web Server**: Nginx
-- **Deployment**: GitHub Actions with multiple deployment targets
+- **Storage**: Browser localStorage (demo mode)
+- **Deployment**: GitHub Pages (static site hosting)
+- **CI/CD**: GitHub Actions automated deployment
+- **Demo Data**: Pre-populated activities, achievements, and analytics
+
+**🎯 Simplified Architecture**: No backend servers, databases, or external dependencies needed!
 
 ## 🚀 Quick Start
 
 ### 🎯 Ready to Deploy?
 
-**NEW!** Complete deployment infrastructure is ready! Choose your path:
+**GitHub Pages Deployment (5 minutes)**:
 
-- **🏃‍♂️ Quick Deployment (30 min)**: Follow [`QUICK_START.md`](QUICK_START.md)
-- **📚 Detailed Setup**: See [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md) 
-- **🧪 Testing Guide**: Check [`TESTING_GUIDE.md`](TESTING_GUIDE.md)
-- **🛠️ Troubleshooting**: See [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md)
+1. **🚀 Quick Deploy**: Run `./deploy.sh` to push code and get setup instructions
+2. **⚙️ Enable Pages**: Go to repository settings and enable GitHub Pages with "GitHub Actions" source  
+3. **🎉 Live in 2-3 minutes**: Your app will be live at `https://matthewdlang18.github.io/strava`
+
+**Documentation**:
+- **🎯 GitHub Pages Setup**: [`SETUP_GITHUB_PAGES.md`](SETUP_GITHUB_PAGES.md)
+- **📚 Success Guide**: [`GITHUB_PAGES_SUCCESS.md`](GITHUB_PAGES_SUCCESS.md) 
 - **🔧 Local Development**: Run `./setup.sh` for automated setup
-- **📋 Status & Progress**: Check [`DEPLOYMENT_STATUS.md`](DEPLOYMENT_STATUS.md)
+- **🛠️ Troubleshooting**: See [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md)
 
 ### ⚙️ Requirements
-- **Node.js 20+** (required for react-router-dom v7)
-- **Python 3.11+**
-- **Git**
-- **Docker** (for containerized deployment)
+- **Node.js 20+** (required for React and modern dependencies)
+- **Git** (for version control and deployment)
+- **Modern Browser** (for localStorage and demo features)
 
 **Check your versions:**
 ```bash
 node --version   # Should be v20.0.0+
-python3 --version # Should be 3.11+
+git --version    # Any recent version
 ```
 
-### Deployment Platforms Supported
-- ✅ **Render** (Recommended) - Free tier, excellent Docker support
-- ✅ **Railway** - Developer-friendly, auto-scaling
-- ✅ **Heroku** - Enterprise-ready platform
+### 🌟 Features
+- ✅ **GitHub Pages Hosting** - Free, fast, reliable
+- ✅ **Demo Mode** - Pre-populated with sample fitness data
+- ✅ **Activity Tracking** - Log runs, rides, and workouts
+- ✅ **Progress Analytics** - Charts and progress visualization  
+- ✅ **Achievement System** - Unlock badges and milestones
+- ✅ **Responsive Design** - Works on desktop and mobile
 
 ### Local Development
 
