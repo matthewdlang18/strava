@@ -62,6 +62,9 @@ assert 'status' in response.json()
 print('✅ /api/health endpoint working')
 "
 
+echo "🧪 Running comprehensive backend tests..."
+python3 -m pytest ../test_backend.py -v --tb=short
+
 echo "✅ Backend tests passed!"
 
 # Summary

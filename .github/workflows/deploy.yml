@@ -35,17 +35,17 @@ jobs:
       run: yarn install --frozen-lockfile
 
     - name: Install backend dependencies
-      working-directory: ./backend
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+        pip install -r backend/requirements.txt
 
     - name: Run frontend tests
       working-directory: ./frontend
       run: yarn test --coverage --watchAll=false --passWithNoTests
 
     - name: Run backend tests
-      run: python -m pytest backend_test.py -v
+      run: python -m pytest test_backend.py -v
 
   build-and-push:
     needs: test
