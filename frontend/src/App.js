@@ -12,11 +12,14 @@ import {
 import { format, formatDistanceToNow } from 'date-fns';
 import 'leaflet/dist/leaflet.css';
 import './App.css';
+import localStorageAPI from './api/localStorage';
 
 // Register Chart.js components
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, ArcElement);
 
-const API_BASE_URL = process.env.REACT_APP_BACKEND_URL;
+// Check if we're in GitHub Pages demo mode
+const DEMO_MODE = process.env.REACT_APP_STORAGE_MODE === 'local' || !process.env.REACT_APP_API_URL;
+const API_BASE_URL = process.env.REACT_APP_BACKEND_URL || process.env.REACT_APP_API_URL;
 
 // Custom Map Component to handle initialization issues
 const ActivityMap = ({ activity }) => {
@@ -156,19 +159,40 @@ function App() {
 
   // Initialize app state
   useEffect(() => {
-    const savedUser = localStorage.getItem('fittracker_user');
-    if (savedUser) {
-      try {
-        const userData = JSON.parse(savedUser);
-        setUser(userData);
-        setCurrentView('dashboard');
-        loadDashboardData(userData.user_id);
-      } catch (error) {
-        console.error('Error parsing saved user:', error);
-        localStorage.removeItem('fittracker_user');
+    const initializeApp = async () => {
+      if (DEMO_MODE) {
+        // For GitHub Pages demo mode, check if we have demo data
+        const existingData = localStorageAPI.getData();
+        if (!existingData.user || existingData.activities.length === 0) {
+          // Populate with demo data
+          const demoData = localStorageAPI.populateDemoData();
+          setUser(demoData.user);
+          setActivities(demoData.activities);
+          setCurrentView('dashboard');
+        } else {
+          setUser(existingData.user);
+          setActivities(existingData.activities);
+          setCurrentView('dashboard');
+        }
+      } else {
+        // Original behavior for Strava integration
+        const savedUser = localStorage.getItem('fittracker_user');
+        if (savedUser) {
+          try {
+            const userData = JSON.parse(savedUser);
+            setUser(userData);
+            setCurrentView('dashboard');
+            loadDashboardData(userData.user_id);
+          } catch (error) {
+            console.error('Error parsing saved user:', error);
+            localStorage.removeItem('fittracker_user');
+          }
+        }
       }
-    }
-    setIsInitialized(true);
+      setIsInitialized(true);
+    };
+
+    initializeApp();
   }, []);
 
   // Handle URL parameters only on initial load
@@ -327,6 +351,15 @@ function App() {
   }, []);
 
   const handleStravaLogin = async () => {
+    if (DEMO_MODE) {
+      // In demo mode, just populate demo data and proceed
+      const demoData = localStorageAPI.populateDemoData();
+      setUser(demoData.user);
+      setActivities(demoData.activities);
+      setCurrentView('dashboard');
+      return;
+    }
+
     try {
       setIsLoading(true);
       const response = await fetch(`${API_BASE_URL}/api/auth/strava`);
@@ -375,6 +408,23 @@ function App() {
   };
 
   const loadDashboardData = async (userId) => {
+    if (DEMO_MODE) {
+      // In demo mode, create mock dashboard data from localStorage
+      const data = localStorageAPI.getData();
+      const activities = data.activities || [];
+      
+      const mockDashboard = {
+        total_activities: activities.length,
+        total_distance: activities.reduce((sum, act) => sum + (act.distance || 0), 0),
+        total_time: activities.reduce((sum, act) => sum + (act.duration || 0), 0),
+        total_elevation: activities.reduce((sum, act) => sum + (act.elevation_gain || 0), 0),
+        recent_activities: activities.slice(0, 5)
+      };
+      
+      setDashboardData(mockDashboard);
+      return;
+    }
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/user/${userId}/dashboard`);
       const data = await response.json();
@@ -386,6 +436,14 @@ function App() {
 
   const loadActivities = async (detailed = false, syncAll = false) => {
     if (!user) return;
+    
+    if (DEMO_MODE) {
+      // In demo mode, load from localStorage
+      const data = localStorageAPI.getData();
+      setActivities(data.activities || []);
+      navigateToView('activities');
+      return;
+    }
     
     try {
       setIsLoading(true);
@@ -418,6 +476,23 @@ function App() {
   const loadPersonalRecords = async () => {
     if (!user) return;
     
+    if (DEMO_MODE) {
+      // Generate mock personal records from localStorage activities
+      const data = localStorageAPI.getData();
+      const activities = data.activities || [];
+      
+      const mockRecords = [
+        { type: 'Longest Run', value: Math.max(...activities.filter(a => a.type === 'Run').map(a => a.distance || 0), 0), unit: 'km' },
+        { type: 'Fastest 5K', value: 1800, unit: 'seconds' },
+        { type: 'Longest Ride', value: Math.max(...activities.filter(a => a.type === 'Ride').map(a => a.distance || 0), 0), unit: 'km' },
+        { type: 'Most Calories', value: Math.max(...activities.map(a => a.calories || 0), 0), unit: 'cal' }
+      ];
+      
+      setPersonalRecords(mockRecords);
+      navigateToView('records');
+      return;
+    }
+    
     try {
       setIsLoading(true);
       const response = await fetch(`${API_BASE_URL}/api/user/${user.user_id}/personal-records`);
@@ -440,6 +515,19 @@ function App() {
   const loadAchievements = async () => {
     if (!user) return;
     
+    if (DEMO_MODE) {
+      // Generate mock achievements
+      const mockAchievements = [
+        { name: 'First Activity', description: 'Completed your first activity!', date: new Date().toISOString(), icon: '🥇' },
+        { name: 'Distance Master', description: 'Completed 100km total distance', date: new Date().toISOString(), icon: '📏' },
+        { name: 'Consistency King', description: 'Worked out 3 days in a row', date: new Date().toISOString(), icon: '📅' }
+      ];
+      
+      setAchievements(mockAchievements);
+      navigateToView('achievements');
+      return;
+    }
+    
     try {
       setIsLoading(true);
       const response = await fetch(`${API_BASE_URL}/api/user/${user.user_id}/achievements`);
@@ -461,6 +549,22 @@ function App() {
 
   const exportData = async () => {
     if (!user) return;
+    
+    if (DEMO_MODE) {
+      // Export localStorage data as JSON
+      const data = localStorageAPI.exportData();
+      const jsonString = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'strava_demo_data.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      return;
+    }
     
     try {
       setExportLoading(true);
@@ -493,6 +597,28 @@ function App() {
 
   const loadActivityDetail = async (stravaId) => {
     if (!user) return;
+    
+    if (DEMO_MODE) {
+      // In demo mode, find activity by ID from localStorage
+      const data = localStorageAPI.getData();
+      const activity = data.activities.find(act => act.id === stravaId);
+      
+      if (activity) {
+        setSelectedActivity(activity);
+        // Generate mock streams and laps data
+        setActivityStreams({
+          time: [0, 300, 600, 900, 1200, 1500, 1800],
+          distance: [0, 0.8, 1.6, 2.4, 3.2, 4.0, 4.8],
+          elevation: [100, 105, 110, 95, 90, 85, 80]
+        });
+        setActivityLaps([
+          { lap_index: 1, total_time_seconds: 900, distance: 2.5, max_speed: 12.5 },
+          { lap_index: 2, total_time_seconds: 900, distance: 2.7, max_speed: 13.2 }
+        ]);
+        setCurrentView('activity-detail');
+      }
+      return;
+    }
     
     try {
       setIsLoading(true);
@@ -647,9 +773,16 @@ function App() {
               FitTracker Pro
             </motion.h1>
             {user && (
-              <span className="text-gray-600">
-                Welcome, {user.athlete?.name || 'Athlete'}! 🏆
-              </span>
+              <div>
+                <span className="text-gray-600">
+                  Welcome, {user.athlete?.name || user.name || 'Athlete'}! 🏆
+                </span>
+                {DEMO_MODE && (
+                  <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full mt-1 inline-block ml-2">
+                    🚀 Demo Mode - Sample Data
+                  </div>
+                )}
+              </div>
             )}
           </div>
           <div className="flex items-center space-x-2">
@@ -728,11 +861,13 @@ function App() {
             transition={{ duration: 0.8 }}
           >
             <h1 className="text-6xl font-bold text-white mb-4">
-              FitTracker Pro Ultimate
+              FitTracker Pro Ultimate {DEMO_MODE && '(Demo)'}
             </h1>
             <p className="text-xl text-white/90 mb-8">
-              The most advanced fitness tracking platform - Features that put Strava Premium to shame. Forever free!
-            </p>
+              {DEMO_MODE 
+                ? "Demo version with sample data - No Strava connection required!" 
+                : "The most advanced fitness tracking platform - Features that put Strava Premium to shame. Forever free!"
+              }</p>
             <motion.div 
               className="flex justify-center flex-wrap gap-4 text-white/80 text-sm"
               variants={staggerContainer}
@@ -778,11 +913,13 @@ function App() {
               >
                 <div className="text-8xl mb-4">🏃‍♂️</div>
                 <h2 className="text-4xl font-bold text-white mb-4">
-                  Connect Your Fitness Data
+                  {DEMO_MODE ? "Try the Demo!" : "Connect Your Fitness Data"}
                 </h2>
                 <p className="text-lg text-white/90 mb-8">
-                  Import your activities from Strava and unlock the most comprehensive fitness analytics platform ever built. 
-                  Personal records tracking, achievement systems, AI-powered insights, weather data, and so much more!
+                  {DEMO_MODE 
+                    ? "Experience all features with sample fitness data. No account required - everything runs locally in your browser!"
+                    : "Import your activities from Strava and unlock the most comprehensive fitness analytics platform ever built. Personal records tracking, achievement systems, AI-powered insights, weather data, and so much more!"
+                  }
                 </p>
               </motion.div>
 
@@ -803,8 +940,8 @@ function App() {
                   </>
                 ) : (
                   <>
-                    <span className="mr-3">🔗</span>
-                    Connect with Strava
+                    <span className="mr-3">{DEMO_MODE ? '🚀' : '🔗'}</span>
+                    {DEMO_MODE ? 'Try Demo Now' : 'Connect with Strava'}
                   </>
                 )}
               </motion.button>
