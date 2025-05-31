@@ -27,7 +27,18 @@ jobs:
     
     - name: Install frontend dependencies
       working-directory: ./frontend
-      run: yarn install --frozen-lockfile
+      run: |
+        # Configure yarn with enhanced network settings
+        yarn config set network-timeout 300000
+        yarn config set network-retry 5
+        # Try primary installation
+        yarn install --frozen-lockfile || \
+        (echo "Yarn failed, trying npm fallback..." && \
+         npm config set registry https://registry.npmjs.org/ && \
+         npm config set fetch-retry-mintimeout 60000 && \
+         npm config set fetch-retry-maxtimeout 300000 && \
+         npm config set fetch-retries 5 && \
+         npm ci --legacy-peer-deps)
     
     - name: Install backend dependencies
       run: |
@@ -36,14 +47,26 @@ jobs:
     
     - name: Run frontend tests
       working-directory: ./frontend
-      run: yarn test --coverage --watchAll=false
+      run: |
+        # Use yarn if available, otherwise npm
+        if command -v yarn &> /dev/null && [ -f yarn.lock ]; then
+          yarn test --coverage --watchAll=false
+        else
+          npm test -- --coverage --watchAll=false
+        fi
     
     - name: Run backend tests
       run: python -m pytest test_backend.py -v
     
     - name: Build frontend
       working-directory: ./frontend
-      run: yarn build
+      run: |
+        # Use yarn if available, otherwise npm
+        if command -v yarn &> /dev/null && [ -f yarn.lock ]; then
+          yarn build
+        else
+          npm run build
+        fi
 
   deploy-to-render:
     needs: test

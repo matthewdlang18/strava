@@ -8,7 +8,17 @@ RUN rm /app/.env
 RUN touch /app/.env
 RUN echo "${FRONTEND_ENV}" | tr ',' '\n' > /app/.env
 RUN cat /app/.env
-RUN yarn install --frozen-lockfile && yarn build
+# Enhanced yarn install with network resilience and fallback strategies
+RUN yarn config set network-timeout 300000 && \
+    yarn config set network-retry 5 && \
+    yarn config set registry https://registry.yarnpkg.com/ && \
+    (yarn install --frozen-lockfile || \
+     (echo "Primary registry failed, trying npm registry..." && \
+      yarn config set registry https://registry.npmjs.org/ && \
+      yarn install --frozen-lockfile) || \
+     (echo "Both registries failed, trying with cache..." && \
+      yarn install --frozen-lockfile --cache-folder ~/.yarn-cache --prefer-offline)) && \
+    yarn build
 
 # Stage 2: Install Python Backend
 FROM python:3.11-slim as backend
