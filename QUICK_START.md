@@ -2,6 +2,21 @@
 
 **Get your Strava FitTracker Pro deployed in under 30 minutes!**
 
+## ⚠️ Requirements
+
+- **Node.js 20+** (required for react-router-dom v7)
+- **Python 3.11+** 
+- **Git**
+
+**Check your Node.js version:**
+```bash
+node --version  # Should be v20.0.0 or higher
+```
+
+**Update Node.js if needed:**
+- [Download from nodejs.org](https://nodejs.org/) (choose LTS version 20+)
+- Or use nvm: `nvm install 20 && nvm use 20`
+
 ## Prerequisites (5 minutes)
 
 ### 1. Strava API Setup

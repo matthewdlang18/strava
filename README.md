@@ -22,6 +22,18 @@ A full-stack web application that integrates with Strava API, featuring a React 
 - **🔧 Local Development**: Run `./setup.sh` for automated setup
 - **📋 Status & Progress**: Check [`DEPLOYMENT_STATUS.md`](DEPLOYMENT_STATUS.md)
 
+### ⚙️ Requirements
+- **Node.js 20+** (required for react-router-dom v7)
+- **Python 3.11+**
+- **Git**
+- **Docker** (for containerized deployment)
+
+**Check your versions:**
+```bash
+node --version   # Should be v20.0.0+
+python3 --version # Should be 3.11+
+```
+
 ### Deployment Platforms Supported
 - ✅ **Render** (Recommended) - Free tier, excellent Docker support
 - ✅ **Railway** - Developer-friendly, auto-scaling

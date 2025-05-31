@@ -95,9 +95,20 @@ fi
 print_step "Checking system requirements..."
 
 if ! command -v node &> /dev/null; then
-    print_error "Node.js is not installed. Please install Node.js 18+ from https://nodejs.org/"
+    print_error "Node.js is not installed. Please install Node.js 20+ from https://nodejs.org/"
     exit 1
 fi
+
+# Check Node.js version (require 20+)
+NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
+if [ "$NODE_VERSION" -lt 20 ]; then
+    print_error "Node.js version 20+ is required (current: $(node --version))"
+    print_error "Please update Node.js:"
+    print_error "  - Download from https://nodejs.org/ (LTS version 20+)"
+    print_error "  - Or use nvm: nvm install 20 && nvm use 20"
+    exit 1
+fi
+print_success "Node.js $(node --version) ✓"
 
 if ! command -v python3 &> /dev/null; then
     print_error "Python 3 is not installed. Please install Python 3.11+ from https://python.org/"
