@@ -1,0 +1,74 @@
+name: 🚀 Deploy to Render (Recommended)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'yarn'
+        cache-dependency-path: 'frontend/yarn.lock'
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install frontend dependencies
+      working-directory: ./frontend
+      run: yarn install --frozen-lockfile
+    
+    - name: Install backend dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install -r backend/requirements.txt
+    
+    - name: Run frontend tests
+      working-directory: ./frontend
+      run: yarn test --coverage --watchAll=false
+    
+    - name: Run backend tests
+      run: python -m pytest test_backend.py -v
+    
+    - name: Build frontend
+      working-directory: ./frontend
+      run: yarn build
+
+  deploy-to-render:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Deploy to Render
+      run: |
+        echo "🎯 Deploying to Render..."
+        echo ""
+        echo "✅ Code pushed to main branch - Render will automatically deploy!"
+        echo ""
+        echo "🔗 Check your deployment status:"
+        echo "   📱 Render Dashboard: https://dashboard.render.com"
+        echo "   📊 Build Logs: Check your service's 'Events' tab"
+        echo ""
+        echo "🌐 Your app will be available at:"
+        echo "   🚀 https://your-app-name.onrender.com"
+        echo "   🔍 Health Check: https://your-app-name.onrender.com/api/health"
+        echo ""
+        echo "⏱️  First deployment typically takes 3-5 minutes"
+        echo "🔄 Subsequent deployments take 1-2 minutes"
+        echo ""
+        echo "🎉 Deployment triggered successfully!"

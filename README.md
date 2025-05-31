@@ -48,6 +48,27 @@ docker-compose up --build
 
 4. Access the application:
 - Frontend: http://localhost:80
+- Backend API: http://localhost:8000
+- Health Check: http://localhost:8000/health
+
+5. **Test everything works**:
+```bash
+./verify-setup.sh
+```
+
+## 🧪 Testing Your Website
+
+### Quick Test
+```bash
+./verify-setup.sh  # Comprehensive test suite
+```
+
+### Manual Testing
+- **Local**: http://localhost:3000 (frontend) + http://localhost:8000 (backend)
+- **Live**: https://your-app-name.onrender.com (after deployment)
+- **Health**: `/api/health` endpoint should return `{"status": "healthy"}`
+
+📖 **Complete testing guide**: See [TESTING_GUIDE.md](TESTING_GUIDE.md)
 - Backend API: http://localhost:8001
 
 ### Manual Setup

@@ -1,0 +1,188 @@
+name: Deploy Strava App
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'yarn'
+        cache-dependency-path: frontend/yarn.lock
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install frontend dependencies
+      working-directory: ./frontend
+      run: yarn install --frozen-lockfile
+
+    - name: Install backend dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r backend/requirements.txt
+
+    - name: Run frontend tests
+      working-directory: ./frontend
+      run: yarn test --coverage --watchAll=false --passWithNoTests
+
+    - name: Run backend tests
+      run: python -m pytest test_backend.py -v
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        build-args: |
+          FRONTEND_ENV=${{ secrets.FRONTEND_ENV }}
+
+  deploy-to-render:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    continue-on-error: true
+
+    steps:
+    - name: Deploy to Render
+      id: render-deploy
+      run: |
+        if [ -z "${{ secrets.RENDER_API_KEY }}" ] || [ -z "${{ secrets.RENDER_SERVICE_ID }}" ]; then
+          echo "❌ Render secrets not configured. Skipping Render deployment."
+          echo "To deploy to Render, add these secrets to your repository:"
+          echo "- RENDER_API_KEY: Your Render API key"
+          echo "- RENDER_SERVICE_ID: Your Render service ID"
+          echo "📖 See DEPLOYMENT_GUIDE.md for detailed setup instructions"
+          exit 0
+        fi
+        
+        echo "🚀 Deploying to Render..."
+        response=$(curl -s -w "\n%{http_code}" -X POST \
+          -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+          -H "Content-Type: application/json" \
+          -d '{"clearCache": false}' \
+          "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys")
+        
+        http_code=$(echo "$response" | tail -n1)
+        body=$(echo "$response" | head -n -1)
+        
+        if [ "$http_code" -eq 201 ] || [ "$http_code" -eq 200 ]; then
+          echo "✅ Render deployment triggered successfully!"
+          echo "Response: $body"
+          echo "🔗 Check deployment status at: https://dashboard.render.com"
+        else
+          echo "❌ Render deployment failed with HTTP $http_code"
+          echo "Response: $body"
+          echo "💡 Check your Render API key and service ID in repository secrets"
+          exit 1
+        fi
+
+  deploy-to-railway:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    continue-on-error: true
+
+    steps:
+    - name: Deploy to Railway
+      run: |
+        if [ -z "${{ secrets.RAILWAY_TOKEN }}" ] || [ -z "${{ secrets.RAILWAY_PROJECT_ID }}" ]; then
+          echo "❌ Railway secrets not configured. Skipping Railway deployment."
+          echo "To deploy to Railway, add these secrets to your repository:"
+          echo "- RAILWAY_TOKEN: Your Railway API token"
+          echo "- RAILWAY_PROJECT_ID: Your Railway project ID"
+          echo "- RAILWAY_ENVIRONMENT_ID: Your Railway environment ID"
+          echo "📖 See DEPLOYMENT_GUIDE.md for detailed setup instructions"
+          exit 0
+        fi
+        
+        echo "🚂 Deploying to Railway..."
+        curl -X POST \
+          -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
+          -H "Content-Type: application/json" \
+          -d '{"environment": "production"}' \
+          "https://backboard.railway.app/graphql" \
+          --data-raw '{"query":"mutation { deploymentTrigger(input: { projectId: \"${{ secrets.RAILWAY_PROJECT_ID }}\", environmentId: \"${{ secrets.RAILWAY_ENVIRONMENT_ID }}\" }) { id } }"}'
+        
+        echo "✅ Railway deployment triggered!"
+
+  deploy-to-heroku:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    continue-on-error: true
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Deploy to Heroku
+      run: |
+        if [ -z "${{ secrets.HEROKU_API_KEY }}" ] || [ -z "${{ secrets.HEROKU_APP_NAME }}" ]; then
+          echo "❌ Heroku secrets not configured. Skipping Heroku deployment."
+          echo "To deploy to Heroku, add these secrets to your repository:"
+          echo "- HEROKU_API_KEY: Your Heroku API key"
+          echo "- HEROKU_APP_NAME: Your Heroku app name"
+          echo "- HEROKU_EMAIL: Your Heroku account email"
+          echo "📖 See DEPLOYMENT_GUIDE.md for detailed setup instructions"
+          exit 0
+        fi
+
+    - name: Deploy to Heroku with Docker
+      uses: akhileshns/heroku-deploy@v3.13.15
+      with:
+        heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
+        heroku_app_name: ${{ secrets.HEROKU_APP_NAME }}
+        heroku_email: ${{ secrets.HEROKU_EMAIL }}
+        usedocker: true

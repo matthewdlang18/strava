@@ -19,12 +19,40 @@
 
 ### 2. MongoDB Setup
 1. Go to [MongoDB Atlas](https://cloud.mongodb.com/)
-2. Create free account and cluster
-3. Create database user (remember username/password)
-4. Get connection string:
-   - Click "Connect" → "Connect your application"
-   - Copy the connection string
-   - ✅ **MongoDB URL**: `mongodb+srv://username:password@cluster.mongodb.net/`
+2. **Create account** and **create cluster** (choose M0 FREE tier)
+3. **Create database user**:
+   - Left sidebar → "Database Access" → "Add New Database User"
+   - Username: `strava_user` (or your choice)
+   - Password: Generate secure password
+   - Database User Privileges: "Read and write to any database"
+4. **Get connection string**:
+   - Left sidebar → "Database" → Your cluster → "Connect"
+   - Choose "Connect your application"
+   - Select "Python" and "3.6 or later"
+   - Copy the connection string and **replace the placeholders**:
+   
+   **Your URL format:**
+   ```
+   mongodb+srv://<db_username>:<db_password>@strava-fittracker-pro.dvvyezk.mongodb.net/?retryWrites=true&w=majority&appName=strava-fittracker-pro
+   ```
+   
+   **Replace placeholders with your credentials:**
+   ```
+   mongodb+srv://myuser:mypass123@strava-fittracker-pro.dvvyezk.mongodb.net/strava_fittracker?retryWrites=true&w=majority&appName=strava-fittracker-pro
+   ```
+   
+   ✅ **MongoDB URL**: Your final URL with real username/password
+
+**Test your MongoDB connection:**
+```bash
+export MONGO_URL="your_complete_url_here"
+python test_mongodb.py
+```
+
+**Example MongoDB URL format:**
+```
+mongodb+srv://USERNAME:PASSWORD@cluster0.abc123.mongodb.net/DATABASE_NAME?retryWrites=true&w=majority
+```
 
 ## Deploy to Render (15 minutes)
 
