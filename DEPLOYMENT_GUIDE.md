@@ -21,7 +21,7 @@ We're deploying to **Render** first due to its excellent Docker support and simp
 1. Go to [MongoDB Atlas](https://cloud.mongodb.com/)
 2. Create a free cluster
 3. Create a database user
-4. Get your connection string: `mongodb+srv://username:password@cluster.mongodb.net/dbname`
+4. Get your connection string: `mongodb+srv://username:password@cluster.mongodb.net/dbname?ssl=true&authSource=admin&tlsAllowInvalidCertificates=true`
 
 **Option B: Render's MongoDB Add-on**
 1. After creating your Render service, add MongoDB add-on

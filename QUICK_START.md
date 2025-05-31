@@ -1,6 +1,14 @@
 # 🚀 Quick Start Deployment
 
-**Get your Strava FitTracker Pro deployed in under 30 minutes!**
+**Get your Strava F   **Your URL format:**
+   ```
+   mongodb+srv://<db_username>:<db_password>@strava-fittracker-pro.dvvyezk.mongodb.net/?retryWrites=true&w=majority&appName=strava-fittracker-pro&ssl=true&authSource=admin&tlsAllowInvalidCertificates=true
+   ```
+   
+   **Replace placeholders with your credentials:**
+   ```
+   mongodb+srv://myuser:mypass123@strava-fittracker-pro.dvvyezk.mongodb.net/strava_fittracker?retryWrites=true&w=majority&appName=strava-fittracker-pro&ssl=true&authSource=admin&tlsAllowInvalidCertificates=true
+   ``` Pro deployed in under 30 minutes!**
 
 ## ⚠️ Requirements
 
@@ -53,7 +61,12 @@ node --version  # Should be v20.0.0 or higher
    
    **Replace placeholders with your credentials:**
    ```
-   mongodb+srv://myuser:mypass123@strava-fittracker-pro.dvvyezk.mongodb.net/strava_fittracker?retryWrites=true&w=majority&appName=strava-fittracker-pro
+   mongodb+srv://myuser:mypass123@strava-fittracker-pro.dvvyezk.mongodb.net/strava_fittracker?retryWrites=true&w=majority&appName=strava-fittracker-pro&ssl=true&tlsAllowInvalidCertificates=true
+   ```
+   
+   **🔧 For Render deployment, use this SSL-compatible format:**
+   ```
+   mongodb+srv://myuser:mypass123@strava-fittracker-pro.dvvyezk.mongodb.net/strava_fittracker?retryWrites=true&w=majority&ssl=true&authSource=admin&tlsAllowInvalidCertificates=true
    ```
    
    ✅ **MongoDB URL**: Your final URL with real username/password

@@ -31,12 +31,16 @@ node --version  # Should show v20.x.x or higher
 ```
 
 ### MongoDB Connection Issues
-**Error**: Connection timeout or authentication failed
+**Error**: Connection timeout, authentication failed, or SSL handshake error
 
 **Solutions**:
 1. **Check credentials**: Ensure username/password are correct in your MongoDB URL
 2. **IP Whitelist**: In MongoDB Atlas, go to Network Access and add `0.0.0.0/0` for all IPs
-3. **Test connection**: Use the MongoDB test script:
+3. **SSL Configuration**: For Render deployment, use SSL-enabled connection string:
+   ```
+   mongodb+srv://username:password@cluster.mongodb.net/database?ssl=true&authSource=admin&tlsAllowInvalidCertificates=true
+   ```
+4. **Test connection**: Use the MongoDB test script:
    ```bash
    export MONGO_URL="your_mongodb_url_here"
    python test_mongodb.py

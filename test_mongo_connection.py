@@ -75,7 +75,7 @@ def main():
     
     if not mongo_url:
         print("📝 Enter your MongoDB URL:")
-        print("   Format: mongodb+srv://username:password@cluster.mongodb.net/database")
+        print("   Format: mongodb+srv://username:password@cluster.mongodb.net/database?ssl=true&authSource=admin&tlsAllowInvalidCertificates=true")
         print()
         mongo_url = input("MongoDB URL: ").strip()
     
