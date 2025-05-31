@@ -19,6 +19,8 @@ A full-stack web application that integrates with Strava API, featuring a React 
 
 - **🏃‍♂️ Quick Deployment (30 min)**: Follow [`QUICK_START.md`](QUICK_START.md)
 - **📚 Detailed Setup**: See [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md) 
+- **🧪 Testing Guide**: Check [`TESTING_GUIDE.md`](TESTING_GUIDE.md)
+- **🛠️ Troubleshooting**: See [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md)
 - **🔧 Local Development**: Run `./setup.sh` for automated setup
 - **📋 Status & Progress**: Check [`DEPLOYMENT_STATUS.md`](DEPLOYMENT_STATUS.md)
 

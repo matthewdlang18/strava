@@ -143,10 +143,10 @@ Now every push to `main` branch will auto-deploy! 🎉
 
 ## 🆘 Need Help?
 
-- **Detailed Guide**: See `DEPLOYMENT_GUIDE.md`
-- **Troubleshooting**: Check `DEPLOYMENT_STATUS.md`
-- **Issues**: Check GitHub Actions logs
-- **Setup Script**: Run `./setup.sh` for local development
+- **Issues or Errors**: See [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md)
+- **Detailed Guide**: See [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md)
+- **Testing**: Check [`TESTING_GUIDE.md`](TESTING_GUIDE.md)
+- **Local Development**: Run `./setup.sh` for automated setup
 
 ## 🎉 You're Live!
 
