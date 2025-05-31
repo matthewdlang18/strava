@@ -55,13 +55,29 @@ async def startup_db_client():
     if not mongo_url or not db_name:
         raise ValueError("MONGO_URL and DB_NAME must be set in environment variables")
     
-    client = AsyncIOMotorClient(mongo_url)
-    db = client[db_name]
+    # For Render deployment, ensure the URL has the correct SSL parameters
+    if "ssl=true" not in mongo_url and "mongodb+srv://" in mongo_url:
+        # Auto-add SSL parameters for Render compatibility
+        separator = "&" if "?" in mongo_url else "?"
+        mongo_url = f"{mongo_url}{separator}ssl=true&tlsInsecure=true"
+        print(f"🔧 Auto-added SSL parameters for Render compatibility")
     
-    # Test the connection
     try:
+        # Motor AsyncIOMotorClient with enhanced timeout settings
+        client = AsyncIOMotorClient(
+            mongo_url,
+            serverSelectionTimeoutMS=30000,
+            connectTimeoutMS=30000,
+            socketTimeoutMS=30000,
+            maxPoolSize=10,
+            retryWrites=True,
+            w="majority"
+        )
+        db = client[db_name]
+        
+        # Test the connection
         await client.admin.command('ping')
-        print(f"Connected to MongoDB: {db_name}")
+        print(f"✅ Connected to MongoDB: {db_name}")
         
         # Create indexes for better performance
         await db.activities.create_index([("user_id", 1), ("start_date", -1)])
@@ -69,9 +85,12 @@ async def startup_db_client():
         await db.personal_records.create_index([("user_id", 1), ("record_type", 1)])
         await db.achievements.create_index([("user_id", 1), ("date_achieved", -1)])
         await db.goals.create_index([("user_id", 1), ("target_date", 1)])
+        print("✅ Database indexes created successfully")
         
     except Exception as e:
-        print(f"Failed to connect to MongoDB: {e}")
+        print(f"❌ MongoDB connection failed: {e}")
+        print(f"🔍 Connection URL format: {mongo_url[:50]}...")
+        print(f"💡 For Render, ensure URL includes: ?ssl=true&tlsInsecure=true")
         raise
 
 @app.on_event("shutdown")

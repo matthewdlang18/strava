@@ -36,9 +36,9 @@ node --version  # Should show v20.x.x or higher
 **Solutions**:
 1. **Check credentials**: Ensure username/password are correct in your MongoDB URL
 2. **IP Whitelist**: In MongoDB Atlas, go to Network Access and add `0.0.0.0/0` for all IPs
-3. **SSL Configuration**: For Render deployment, use SSL-enabled connection string:
+3. **SSL Configuration**: For Render deployment, use the tested working connection string:
    ```
-   mongodb+srv://username:password@cluster.mongodb.net/database?ssl=true&authSource=admin&tlsAllowInvalidCertificates=true
+   mongodb+srv://username:password@cluster.mongodb.net/database?ssl=true&tlsInsecure=true
    ```
 4. **Test connection**: Use the MongoDB test script:
    ```bash

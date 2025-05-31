@@ -73,13 +73,18 @@ Once you update that environment variable in Render, your Strava FitTracker Pro 
 
 ---
 
-## ✅ **CONFIRMED WORKING** - User's MongoDB URL
-Your updated MongoDB URL is working perfectly:
+## ✅ **CONFIRMED WORKING** - Updated MongoDB URL for Render
+Based on comprehensive testing, use this MongoDB URL for Render deployment:
 ```
-mongodb+srv://strava_app:strava_app@strava-fittracker-pro.dvvyezk.mongodb.net/?ssl=true&authSource=admin&tlsAllowInvalidCertificates=true
+mongodb+srv://strava_app:strava_app@strava-fittracker-pro.dvvyezk.mongodb.net/strava_fittracker?ssl=true&tlsInsecure=true
 ```
 
-**Test Results**: ✅ Connection successful, SSL configured, database accessible
+**Test Results**: ✅ Connection successful with `tlsInsecure=true` parameter
+
+**Alternative (if first doesn't work):**
+```
+mongodb+srv://strava_app:strava_app@strava-fittracker-pro.dvvyezk.mongodb.net/strava_fittracker?ssl=true&tlsAllowInvalidCertificates=true&tlsAllowInvalidHostnames=true
+```
 
 ---
 

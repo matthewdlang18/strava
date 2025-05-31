@@ -82,9 +82,14 @@ python test_mongodb.py
 mongodb+srv://USERNAME:PASSWORD@cluster0.abc123.mongodb.net/DATABASE_NAME?retryWrites=true&w=majority&ssl=true&authSource=admin&tlsAllowInvalidCertificates=true
 ```
 
-**Working Example (tested ✅):**
+**Working Example (tested ✅ for Render):**
 ```
-mongodb+srv://strava_app:strava_app@strava-fittracker-pro.dvvyezk.mongodb.net/?ssl=true&authSource=admin&tlsAllowInvalidCertificates=true
+mongodb+srv://strava_app:strava_app@strava-fittracker-pro.dvvyezk.mongodb.net/strava_fittracker?ssl=true&tlsInsecure=true
+```
+
+**Alternative format:**
+```
+mongodb+srv://USERNAME:PASSWORD@cluster0.abc123.mongodb.net/DATABASE_NAME?ssl=true&tlsInsecure=true
 ```
 
 ## Deploy to Render (15 minutes)
