@@ -79,7 +79,12 @@ python test_mongodb.py
 
 **Example MongoDB URL format:**
 ```
-mongodb+srv://USERNAME:PASSWORD@cluster0.abc123.mongodb.net/DATABASE_NAME?retryWrites=true&w=majority
+mongodb+srv://USERNAME:PASSWORD@cluster0.abc123.mongodb.net/DATABASE_NAME?retryWrites=true&w=majority&ssl=true&authSource=admin&tlsAllowInvalidCertificates=true
+```
+
+**Working Example (tested ✅):**
+```
+mongodb+srv://strava_app:strava_app@strava-fittracker-pro.dvvyezk.mongodb.net/?ssl=true&authSource=admin&tlsAllowInvalidCertificates=true
 ```
 
 ## Deploy to Render (15 minutes)
