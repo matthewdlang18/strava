@@ -1,33 +1,35 @@
 {
-  "name": "strava-fitness-tracker",
-  "version": "1.0.0",
+  "name": "fittracker-pro",
+  "version": "2.0.0",
   "private": true,
   "homepage": "https://matthewdlang18.github.io/strava",
+  "description": "The ultimate fitness tracking platform - GitHub Pages demo version",
+  "keywords": ["fitness", "tracking", "react", "demo", "health", "analytics"],
+  "author": "FitTracker Pro",
+  "license": "MIT",
   "dependencies": {
-    "axios": "^1.8.4",
-    "cra-template": "1.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.5.1",
     "react-scripts": "5.0.1",
-    "web-vitals": "^2.1.4",
-    "leaflet": "^1.9.4",
-    "react-leaflet": "^4.2.1",
+    "framer-motion": "^10.16.16",
+    "react-intersection-observer": "^9.5.3",
+    "react-icons": "^4.12.0",
     "chart.js": "^4.4.1",
     "react-chartjs-2": "^5.2.0",
+    "leaflet": "^1.9.4",
+    "react-leaflet": "^4.2.1",
     "date-fns": "^2.30.0",
-    "react-icons": "^4.12.0",
-    "framer-motion": "^10.16.16",
-    "react-spring": "^9.7.3",
-    "react-intersection-observer": "^9.5.3"
+    "web-vitals": "^2.1.4"
   },
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "install:safe": "npm ci --legacy-peer-deps --registry=https://registry.npmjs.org/",
-    "install:yarn-safe": "yarn install --frozen-lockfile --network-timeout 300000 --network-retry 5"
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d build",
+    "lint": "eslint src --ext .js,.jsx",
+    "lint:fix": "eslint src --ext .js,.jsx --fix"
   },
   "browserslist": {
     "production": [
@@ -42,23 +44,26 @@
     ]
   },
   "devDependencies": {
-    "@eslint/js": "9.23.0",
     "@testing-library/jest-dom": "^6.1.4",
     "@testing-library/react": "^14.1.2",
     "@testing-library/user-event": "^14.5.1",
-    "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
     "autoprefixer": "^10.4.20",
-    "eslint": "9.23.0",
-    "eslint-plugin-import": "2.31.0",
-    "eslint-plugin-jsx-a11y": "6.10.2",
-    "eslint-plugin-react": "7.37.4",
-    "globals": "15.15.0",
     "postcss": "^8.4.49",
-    "tailwindcss": "^3.4.17"
+    "tailwindcss": "^3.4.17",
+    "gh-pages": "^6.1.1",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react": "^7.37.4",
+    "eslint-plugin-react-hooks": "^4.6.0"
   },
   "engines": {
-    "node": ">=20.0.0",
-    "npm": ">=9.0.0",
-    "yarn": ">=1.22.0"
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/matthewdlang18/strava.git"
+  },
+  "bugs": {
+    "url": "https://github.com/matthewdlang18/strava/issues"
   }
 }

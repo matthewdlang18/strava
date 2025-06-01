@@ -1,264 +1,325 @@
-// Local Storage API for GitHub Pages deployment
-// Replaces MongoDB with browser local storage
+// Local Storage Service for GitHub Pages deployment
+// Handles all data persistence using browser localStorage
 
-class LocalStorageAPI {
+class LocalStorageService {
   constructor() {
-    this.storageKey = 'strava_fittracker_data';
-    this.initializeStorage();
+    this.storageKey = 'fittracker_pro_data';
+    this.versionKey = 'fittracker_pro_version';
+    this.currentVersion = '2.0.0';
   }
 
+  // Initialize storage with default structure
   initializeStorage() {
-    if (!localStorage.getItem(this.storageKey)) {
-      localStorage.setItem(this.storageKey, JSON.stringify({
-        activities: [],
+    if (!this.hasData() || this.needsUpgrade()) {
+      const defaultData = {
         user: null,
-        settings: {}
-      }));
+        activities: [],
+        achievements: [],
+        settings: {
+          theme: 'light',
+          units: 'metric',
+          notifications: true
+        },
+        stats: {
+          thisWeek: { activities: 0, distance: 0, time: 0, calories: 0 },
+          thisMonth: { activities: 0, distance: 0, time: 0, calories: 0 },
+          allTime: { activities: 0, distance: 0, time: 0, calories: 0 }
+        }
+      };
+      
+      this.saveData(defaultData);
+      localStorage.setItem(this.versionKey, this.currentVersion);
+      console.log('✅ Storage initialized with default data');
     }
   }
 
+  // Check if storage has data
+  hasData() {
+    return localStorage.getItem(this.storageKey) !== null;
+  }
+
+  // Check if data needs upgrade
+  needsUpgrade() {
+    const version = localStorage.getItem(this.versionKey);
+    return version !== this.currentVersion;
+  }
+
+  // Get all data from storage
   getData() {
     try {
-      return JSON.parse(localStorage.getItem(this.storageKey)) || {
-        activities: [],
-        user: null,
-        settings: {}
-      };
+      const data = localStorage.getItem(this.storageKey);
+      return data ? JSON.parse(data) : this.getDefaultData();
     } catch (error) {
       console.error('Error reading from localStorage:', error);
-      return { activities: [], user: null, settings: {} };
+      return this.getDefaultData();
     }
   }
 
-  saveData(data) {
-    try {
-      localStorage.setItem(this.storageKey, JSON.stringify(data));
-      return true;
-    } catch (error) {
-      console.error('Error saving to localStorage:', error);
-      return false;
-    }
-  }
-
-  // Mock API methods
-  async getActivities() {
-    const data = this.getData();
-    return { activities: data.activities || [] };
-  }
-
-  async saveActivity(activity) {
-    const data = this.getData();
-    activity.id = Date.now().toString();
-    activity.created_at = new Date().toISOString();
-    data.activities.push(activity);
-    this.saveData(data);
-    return { success: true, activity };
-  }
-
-  async deleteActivity(id) {
-    const data = this.getData();
-    data.activities = data.activities.filter(activity => activity.id !== id);
-    this.saveData(data);
-    return { success: true };
-  }
-
-  async getUser() {
-    const data = this.getData();
-    return { user: data.user };
-  }
-
-  async saveUser(user) {
-    const data = this.getData();
-    data.user = user;
-    this.saveData(data);
-    return { success: true, user };
-  }
-
-  // Demo data population
-  populateDemoData() {
-    const today = new Date();
-    const demoData = {
-      activities: [
-        {
-          id: '1',
-          name: 'Morning Run 🌅',
-          type: 'Run',
-          distance: 5.2,
-          duration: 1800, // 30 minutes
-          calories: 320,
-          avg_speed: 10.4,
-          max_speed: 15.2,
-          elevation_gain: 45,
-          avg_heart_rate: 145,
-          max_heart_rate: 168,
-          weather: '☀️ Sunny, 22°C',
-          date: today.toISOString(),
-          created_at: today.toISOString(),
-          has_map: true,
-          route_coordinates: [
-            [37.7749, -122.4194], [37.7759, -122.4184], [37.7769, -122.4174],
-            [37.7779, -122.4164], [37.7789, -122.4154], [37.7799, -122.4144]
-          ]
-        },
-        {
-          id: '2',
-          name: 'Evening Bike Ride 🚴‍♂️',
-          type: 'Ride',
-          distance: 15.8,
-          duration: 2700, // 45 minutes
-          calories: 480,
-          avg_speed: 21.1,
-          max_speed: 35.4,
-          elevation_gain: 234,
-          avg_heart_rate: 132,
-          max_heart_rate: 158,
-          weather: '⛅ Partly Cloudy, 19°C',
-          date: new Date(Date.now() - 86400000).toISOString(),
-          created_at: new Date(Date.now() - 86400000).toISOString(),
-          has_map: true,
-          route_coordinates: [
-            [37.7849, -122.4094], [37.7859, -122.4084], [37.7869, -122.4074],
-            [37.7879, -122.4064], [37.7889, -122.4054], [37.7899, -122.4044]
-          ]
-        },
-        {
-          id: '3',
-          name: 'Weekend Trail Hike 🥾',
-          type: 'Hike',
-          distance: 8.5,
-          duration: 4200, // 70 minutes
-          calories: 540,
-          avg_speed: 7.3,
-          max_speed: 12.8,
-          elevation_gain: 456,
-          avg_heart_rate: 128,
-          max_heart_rate: 155,
-          weather: '🌤️ Mostly Sunny, 16°C',
-          date: new Date(Date.now() - 172800000).toISOString(),
-          created_at: new Date(Date.now() - 172800000).toISOString(),
-          has_map: true,
-          route_coordinates: [
-            [37.7949, -122.3994], [37.7959, -122.3984], [37.7969, -122.3974],
-            [37.7979, -122.3964], [37.7989, -122.3954], [37.7999, -122.3944]
-          ]
-        },
-        {
-          id: '4',
-          name: 'Lunch Break Walk 🚶‍♀️',
-          type: 'Walk',
-          distance: 2.1,
-          duration: 1200, // 20 minutes
-          calories: 85,
-          avg_speed: 6.3,
-          max_speed: 8.1,
-          elevation_gain: 12,
-          weather: '☁️ Cloudy, 18°C',
-          date: new Date(Date.now() - 259200000).toISOString(),
-          created_at: new Date(Date.now() - 259200000).toISOString(),
-          has_map: false
-        },
-        {
-          id: '5',
-          name: 'Gym Workout 💪',
-          type: 'Workout',
-          distance: 0,
-          duration: 3600, // 60 minutes
-          calories: 425,
-          avg_heart_rate: 140,
-          max_heart_rate: 175,
-          date: new Date(Date.now() - 345600000).toISOString(),
-          created_at: new Date(Date.now() - 345600000).toISOString(),
-          has_map: false,
-          notes: 'Upper body strength training'
-        },
-        {
-          id: '6',
-          name: 'Long Weekend Run 🏃‍♂️',
-          type: 'Run',
-          distance: 12.5,
-          duration: 4500, // 75 minutes
-          calories: 780,
-          avg_speed: 10.0,
-          max_speed: 16.8,
-          elevation_gain: 89,
-          avg_heart_rate: 148,
-          max_heart_rate: 172,
-          weather: '🌦️ Light Rain, 15°C',
-          date: new Date(Date.now() - 432000000).toISOString(),
-          created_at: new Date(Date.now() - 432000000).toISOString(),
-          has_map: true,
-          route_coordinates: [
-            [37.8049, -122.3894], [37.8059, -122.3884], [37.8069, -122.3874],
-            [37.8079, -122.3864], [37.8089, -122.3854], [37.8099, -122.3844],
-            [37.8109, -122.3834], [37.8119, -122.3824], [37.8129, -122.3814]
-          ]
-        }
-      ],
-      user: {
-        name: 'Alex Runner',
-        email: 'demo@stravatracker.com',
-        id: 'demo_user_2025',
-        profile_picture: '🏃‍♂️',
-        join_date: '2024-01-15',
-        total_activities: 47,
-        total_distance: 284.6,
-        total_time: 89400, // 24.8 hours
-        achievements: [
-          { id: 1, name: 'First Run', icon: '🥇', earned: true, date: '2024-01-16' },
-          { id: 2, name: 'Week Warrior', icon: '📅', earned: true, date: '2024-01-22' },
-          { id: 3, name: '50K Hero', icon: '🏃‍♂️', earned: true, date: '2024-02-15' },
-          { id: 4, name: 'Mountain Climber', icon: '⛰️', earned: true, date: '2024-03-10' },
-          { id: 5, name: 'Speed Demon', icon: '⚡', earned: false, target: 'Run 5K in under 20 minutes' },
-          { id: 6, name: 'Century Rider', icon: '🚴‍♂️', earned: false, target: 'Bike 100K in one ride' }
-        ],
-        personal_records: {
-          fastest_5k: { time: 1260, date: '2024-04-12' }, // 21:00
-          longest_run: { distance: 12.5, date: '2024-05-26' },
-          fastest_bike_ride: { speed: 35.4, date: '2024-05-30' },
-          most_elevation: { elevation: 456, date: '2024-05-29' }
-        },
-        weekly_goals: {
-          distance: 25,
-          activities: 4,
-          calories: 2000
-        },
-        preferences: {
-          units: 'metric',
-          public_profile: false,
-          email_notifications: true
-        }
-      },
+  // Get default data structure
+  getDefaultData() {
+    return {
+      user: null,
+      activities: [],
+      achievements: [],
       settings: {
         theme: 'light',
         units: 'metric',
         notifications: true
+      },
+      stats: {
+        thisWeek: { activities: 0, distance: 0, time: 0, calories: 0 },
+        thisMonth: { activities: 0, distance: 0, time: 0, calories: 0 },
+        allTime: { activities: 0, distance: 0, time: 0, calories: 0 }
       }
     };
-    
-    this.saveData(demoData);
-    return demoData;
+  }
+
+  // Save data to storage
+  saveData(data) {
+    try {
+      localStorage.setItem(this.storageKey, JSON.stringify(data));
+      return { success: true };
+    } catch (error) {
+      console.error('Error saving to localStorage:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Get activities
+  getActivities() {
+    const data = this.getData();
+    return data.activities || [];
+  }
+
+  // Save activity
+  saveActivity(activity) {
+    try {
+      const data = this.getData();
+      
+      // Generate ID if not provided
+      if (!activity.id) {
+        activity.id = Date.now().toString();
+      }
+      
+      // Add timestamps
+      activity.created_at = activity.created_at || new Date().toISOString();
+      activity.updated_at = new Date().toISOString();
+      
+      // Add or update activity
+      const existingIndex = data.activities.findIndex(a => a.id === activity.id);
+      if (existingIndex >= 0) {
+        data.activities[existingIndex] = activity;
+      } else {
+        data.activities.push(activity);
+      }
+      
+      // Sort by date (newest first)
+      data.activities.sort((a, b) => new Date(b.date) - new Date(a.date));
+      
+      this.saveData(data);
+      this.updateStats(data);
+      
+      return { success: true, activity };
+    } catch (error) {
+      console.error('Error saving activity:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Delete activity
+  deleteActivity(id) {
+    try {
+      const data = this.getData();
+      const originalLength = data.activities.length;
+      data.activities = data.activities.filter(activity => activity.id !== id);
+      
+      if (data.activities.length < originalLength) {
+        this.saveData(data);
+        this.updateStats(data);
+        return { success: true };
+      } else {
+        return { success: false, error: 'Activity not found' };
+      }
+    } catch (error) {
+      console.error('Error deleting activity:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Get user data
+  getUser() {
+    const data = this.getData();
+    return data.user;
+  }
+
+  // Save user data
+  saveUser(user) {
+    try {
+      const data = this.getData();
+      data.user = {
+        ...data.user,
+        ...user,
+        updated_at: new Date().toISOString()
+      };
+      
+      this.saveData(data);
+      return { success: true, user: data.user };
+    } catch (error) {
+      console.error('Error saving user:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Get achievements
+  getAchievements() {
+    const data = this.getData();
+    return data.achievements || [];
+  }
+
+  // Save achievement
+  saveAchievement(achievement) {
+    try {
+      const data = this.getData();
+      
+      if (!achievement.id) {
+        achievement.id = Date.now().toString();
+      }
+      
+      achievement.earned_at = achievement.earned_at || new Date().toISOString();
+      
+      const existingIndex = data.achievements.findIndex(a => a.id === achievement.id);
+      if (existingIndex >= 0) {
+        data.achievements[existingIndex] = achievement;
+      } else {
+        data.achievements.push(achievement);
+      }
+      
+      this.saveData(data);
+      return { success: true, achievement };
+    } catch (error) {
+      console.error('Error saving achievement:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Update calculated stats
+  updateStats(data = null) {
+    try {
+      if (!data) data = this.getData();
+      
+      const activities = data.activities || [];
+      const now = new Date();
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      
+      // Calculate this week stats
+      const thisWeekActivities = activities.filter(a => new Date(a.date) >= weekAgo);
+      data.stats.thisWeek = this.calculateStatsFromActivities(thisWeekActivities);
+      
+      // Calculate this month stats
+      const thisMonthActivities = activities.filter(a => new Date(a.date) >= monthAgo);
+      data.stats.thisMonth = this.calculateStatsFromActivities(thisMonthActivities);
+      
+      // Calculate all time stats
+      data.stats.allTime = this.calculateStatsFromActivities(activities);
+      
+      this.saveData(data);
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating stats:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Calculate stats from activities array
+  calculateStatsFromActivities(activities) {
+    return {
+      activities: activities.length,
+      distance: activities.reduce((sum, a) => sum + (a.distance || 0), 0),
+      time: activities.reduce((sum, a) => sum + (a.duration || 0), 0),
+      calories: activities.reduce((sum, a) => sum + (a.calories || 0), 0),
+      elevation: activities.reduce((sum, a) => sum + (a.elevation_gain || 0), 0)
+    };
+  }
+
+  // Export data as JSON
+  exportData() {
+    const data = this.getData();
+    return {
+      ...data,
+      exported_at: new Date().toISOString(),
+      version: this.currentVersion
+    };
+  }
+
+  // Import data from JSON
+  importData(importedData) {
+    try {
+      // Validate data structure
+      if (!importedData || typeof importedData !== 'object') {
+        throw new Error('Invalid data format');
+      }
+      
+      // Merge with existing data, preserving user preferences
+      const currentData = this.getData();
+      const mergedData = {
+        ...currentData,
+        ...importedData,
+        settings: {
+          ...currentData.settings,
+          ...importedData.settings
+        },
+        imported_at: new Date().toISOString()
+      };
+      
+      this.saveData(mergedData);
+      this.updateStats(mergedData);
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Error importing data:', error);
+      return { success: false, error: error.message };
+    }
   }
 
   // Clear all data
   clearData() {
-    localStorage.removeItem(this.storageKey);
-    this.initializeStorage();
-  }
-
-  // Export data
-  exportData() {
-    return this.getData();
-  }
-
-  // Import data
-  importData(data) {
     try {
-      this.saveData(data);
+      localStorage.removeItem(this.storageKey);
+      localStorage.removeItem(this.versionKey);
+      this.initializeStorage();
       return { success: true };
     } catch (error) {
+      console.error('Error clearing data:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Get storage usage info
+  getStorageInfo() {
+    try {
+      const data = JSON.stringify(this.getData());
+      const sizeInBytes = new Blob([data]).size;
+      const sizeInKB = (sizeInBytes / 1024).toFixed(2);
+      
+      return {
+        success: true,
+        size: {
+          bytes: sizeInBytes,
+          kb: sizeInKB,
+          readable: sizeInKB < 1024 ? `${sizeInKB} KB` : `${(sizeInKB / 1024).toFixed(2)} MB`
+        },
+        itemCount: {
+          activities: this.getActivities().length,
+          achievements: this.getAchievements().length
+        }
+      };
+    } catch (error) {
+      console.error('Error getting storage info:', error);
       return { success: false, error: error.message };
     }
   }
 }
 
-export default new LocalStorageAPI();
+// Export singleton instance
+export default new LocalStorageService();
